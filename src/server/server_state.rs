@@ -2,14 +2,12 @@ use array2d::*;
 use std::collections::HashMap;
 use std::net::{SocketAddr, UdpSocket};
 
-use crate::net::*;
 use crate::shared::net_event::*;
 use crate::shared::tile::*;
 
 pub struct ServerState {
     kill: bool,
 
-    socket: UdpSocket,
     broadcast: Vec<NetEvent>,
     connections: HashMap<SocketAddr, Vec<NetEvent>>,
 
@@ -18,7 +16,7 @@ pub struct ServerState {
 }
 
 impl ServerState {
-    pub fn new(socket: UdpSocket) -> Self {
+    pub fn new() -> Self {
         // Create 1024 * 256 chunk world.
         let tiles = Array2D::from_closure(8 * 1024, 8 * 256, |x, y| {
             let h = (7.0 * ((x as f32 / 4.).sin() + 1.0) / 2.0) as usize + 15;
@@ -34,7 +32,6 @@ impl ServerState {
         Self {
             kill: false,
 
-            socket,
             broadcast: Vec::new(),
             connections: HashMap::new(),
 
@@ -42,17 +39,16 @@ impl ServerState {
         }
     }
 
-    pub fn preframe(&mut self, _timestamp: u64) {
-        for (event, addr) in recv_from(&self.socket) {
-            // Handle disconnects.
-            if matches!(event, NetEvent::Disconnect) {
-                self.connections.remove(&addr);
-                continue;
-            }
-
+    pub fn preframe(
+        &mut self,
+        _timestamp: u64,
+        net_events: impl Iterator<Item = (NetEvent, SocketAddr)>,
+    ) {
+        for (event, addr) in net_events {
             // Handle connect.
-            if matches!(event, NetEvent::Connect) {
+            if matches!(event, NetEvent::Connect) && !self.connections.contains_key(&addr) {
                 self.connections.insert(addr, vec![NetEvent::Accept]);
+                println!("[Server] {:?} has connected.", addr);
                 continue;
             }
 
@@ -62,12 +58,15 @@ impl ServerState {
                 None => continue,
             };
 
-            println!("[Server] {event:?}");
             // Handle net message.
+            println!("[Server] {addr:?}: {event:?}");
             match event {
                 // Connection handling is done above.
-                NetEvent::Connect => unreachable!(),
-                NetEvent::Disconnect => unreachable!(),
+                NetEvent::Connect => {} // Redundant connect
+                NetEvent::Disconnect => {
+                    self.connections.remove(&addr);
+                }
+
                 NetEvent::Close => self.kill = true,
 
                 // If a chunk is requested, send back in 8x8 chunks.
@@ -87,15 +86,17 @@ impl ServerState {
 
     pub fn step(&mut self, _timestamp: u64, _frametime: u64) {}
 
-    pub fn postframe(&mut self, _timestamp: u64) -> bool {
-        // Send all pending net messages, clearing the them in the process.
-        use std::mem::replace;
-        let broadcast = replace(&mut self.broadcast, Vec::new());
+    pub fn postframe(
+        &mut self,
+        _timestamp: u64,
+        send_to: impl Fn(SocketAddr, Vec<NetEvent>),
+    ) -> bool {
+        use std::mem::take;
         for (&addr, events) in self.connections.iter_mut() {
-            let events = replace(events, Vec::new());
-            send_to(&self.socket, addr, events);
-            send_to(&self.socket, addr, broadcast.iter().cloned());
+            send_to(addr, take(events));
+            send_to(addr, self.broadcast.clone());
         }
+        self.broadcast.clear();
 
         return self.kill;
     }

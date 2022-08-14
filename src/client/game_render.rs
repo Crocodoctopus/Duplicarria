@@ -135,7 +135,6 @@ impl GameRender {
     }
 }
 
-
 fn load_game_textures() -> HashMap<&'static str, ezgl::Texture2D> {
     let root = crate::io::get_root().join("resources");
     let load_list = ["tile_sheet.png", "mask_sheet.png"];

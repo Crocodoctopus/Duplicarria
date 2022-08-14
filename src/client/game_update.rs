@@ -1,7 +1,7 @@
 use array2d::FastArray2D;
 
-use super::input_event::*;
 use super::game_frame::*;
+use super::input_event::*;
 use crate::shared::net_event::*;
 use crate::shared::tile::*;
 use crate::shared::*;
@@ -203,7 +203,7 @@ impl GameUpdate {
     pub fn postframe(
         &mut self,
         _timestamp: u64,
-    ) -> (Option<GameFrame>, impl Iterator<Item = NetEvent>) {
+    ) -> (Option<GameFrame>, impl IntoIterator<Item = NetEvent>) {
         // Outbound net events.
         let mut net_events = vec![];
 

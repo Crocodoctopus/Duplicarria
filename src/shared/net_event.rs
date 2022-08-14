@@ -18,3 +18,11 @@ pub enum NetEvent {
     // chat
     ChatMessage(String),
 }
+
+impl IntoIterator for NetEvent {
+    type Item = Self;
+    type IntoIter = std::iter::Once<Self>;
+    fn into_iter(self) -> Self::IntoIter {
+        std::iter::once(self)
+    }
+}

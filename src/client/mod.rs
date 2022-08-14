@@ -1,20 +1,20 @@
-mod game_update;
 mod functions;
-pub mod input_event;
 mod game_frame;
 mod game_render;
+mod game_update;
+pub mod input_event;
 
 use crossbeam_channel::{Receiver, Sender};
 use glutin::{NotCurrent, WindowedContext};
 use std::net::UdpSocket;
 use std::{thread, thread::JoinHandle};
 
-use crate::shared::net_event::NetEvent;
-use self::game_update::*;
-use self::input_event::*;
 use self::game_frame::*;
 use self::game_render::*;
+use self::game_update::*;
+use self::input_event::*;
 use crate::net::*;
+use crate::shared::net_event::NetEvent;
 use crate::time::*;
 
 pub fn time<T>(t: &mut u64, mut f: impl FnMut() -> T) -> T {
@@ -69,7 +69,7 @@ pub fn client_update_thread(
     let socket = UdpSocket::bind(("127.0.0.1", 0)).unwrap();
     socket.connect(("127.0.0.1", server_port));
     socket.set_nonblocking(true);
-    send(&socket, vec![NetEvent::Connect]);
+    send(&socket, NetEvent::Connect);
 
     loop {
         // Wait until enough has passed for at least 1 frame.
@@ -93,14 +93,14 @@ pub fn client_update_thread(
         // Run postframe.
         let (frame, net_events) = time(&mut postframe_us, || game_update.postframe(timestamp));
 
+        // Send net messages.
+        send(&socket, net_events);
+
         // Send frame to render thread.
         match frame {
             Some(rs) => render_send.send(rs).unwrap(),
             None => break,
         };
-
-        // Send net events to server.
-        send(&socket, net_events);
 
         // Print fps.
         if print_acc > 5_000_000 / frametime {
@@ -116,10 +116,7 @@ pub fn client_update_thread(
     }
 
     // Send kill.
-    send(
-        &socket,
-        vec![NetEvent::Close],
-    );
+    send(&socket, NetEvent::Close);
 
     // Wait for server shutdown.
     server_handle.join().unwrap();
