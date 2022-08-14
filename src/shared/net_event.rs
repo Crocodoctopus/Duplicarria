@@ -7,6 +7,7 @@ pub enum NetEvent {
     Accept,
     Ping,
     Disconnect,
+    Close,
 
     //
     RequestChunk(u16, u16),

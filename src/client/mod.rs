@@ -14,6 +14,7 @@ use self::input_event::*;
 use self::render_frame::*;
 use self::render_state::*;
 use crate::net::*;
+use crate::shared::net_event::NetEvent;
 use crate::time::*;
 
 pub fn time<T>(t: &mut u64, mut f: impl FnMut() -> T) -> T {
@@ -49,7 +50,7 @@ pub fn client_update_thread(
     render_send: Sender<RenderFrame>,
     input_recv: Receiver<InputEvent>,
     (window_w, window_h): (f32, f32),
-) -> ! {
+) {
     println!("[Client] Update thread start.");
     let frametime = 16_666; // us
     let mut timestamp = get_microseconds_as_u64();
@@ -68,7 +69,7 @@ pub fn client_update_thread(
     let socket = UdpSocket::bind(("127.0.0.1", 0)).unwrap();
     socket.connect(("127.0.0.1", server_port));
     socket.set_nonblocking(true);
-    send(&socket, vec![crate::shared::net_event::NetEvent::Connect]);
+    send(&socket, vec![NetEvent::Connect]);
 
     loop {
         // Wait until enough has passed for at least 1 frame.
@@ -114,17 +115,20 @@ pub fn client_update_thread(
         }
     }
 
+    // Send kill.
+    send(&socket, vec![NetEvent::Close]);
+
     // Wait for server shutdown.
-    server_handle.join();
+    server_handle.join().unwrap();
 
     println!("[Client] Update thread closed.");
-    std::process::exit(0);
+    return;
 }
 
 pub fn client_render_thread(
     windowed_context: WindowedContext<NotCurrent>,
     render_recv: Receiver<RenderFrame>,
-) -> ! {
+) {
     println!("[Client] Render thread start.");
 
     // Initialize context.
@@ -154,5 +158,5 @@ pub fn client_render_thread(
     }
 
     println!("[Client] Render thread closed.");
-    std::process::exit(0);
+    return;
 }

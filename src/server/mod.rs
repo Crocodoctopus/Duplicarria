@@ -21,7 +21,7 @@ pub fn launch_server(port: u16) -> (u16, JoinHandle<()>) {
     (port, update_handle)
 }
 
-pub fn server_update_thread(socket: UdpSocket) -> ! {
+pub fn server_update_thread(socket: UdpSocket) {
     println!("[Server] Update thread start.");
     let frametime = 16_666; // ns
     let mut timestamp = get_microseconds_as_u64();
@@ -29,7 +29,7 @@ pub fn server_update_thread(socket: UdpSocket) -> ! {
     // Create server state.
     let mut server_state = ServerState::new(socket);
 
-    while !server_state.kill {
+    loop {
         // Wait until enough has passed for at least 1 frame
         let next_timestamp = wait(timestamp + frametime);
 
@@ -44,9 +44,11 @@ pub fn server_update_thread(socket: UdpSocket) -> ! {
         }
 
         // Run postframe.
-        server_state.postframe(timestamp);
+        if server_state.postframe(timestamp) == true {
+            break;
+        }
     }
 
     println!("[Server] Update thread closed.");
-    std::process::exit(0);
+    return;
 }

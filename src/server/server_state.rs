@@ -7,7 +7,8 @@ use crate::shared::net_event::*;
 use crate::shared::tile::*;
 
 pub struct ServerState {
-    pub kill: bool,
+    kill: bool,
+
     socket: UdpSocket,
     broadcast: Vec<NetEvent>,
     connections: HashMap<SocketAddr, Vec<NetEvent>>,
@@ -32,6 +33,7 @@ impl ServerState {
 
         Self {
             kill: false,
+
             socket,
             broadcast: Vec::new(),
             connections: HashMap::new(),
@@ -42,7 +44,13 @@ impl ServerState {
 
     pub fn preframe(&mut self, _timestamp: u64) {
         for (event, addr) in recv_from(&self.socket) {
-            // Handle connect requests first.
+            // Handle disconnects.
+            if matches!(event, NetEvent::Disconnect) {
+                self.connections.remove(&addr);
+                continue;
+            }
+
+            // Handle connect.
             if matches!(event, NetEvent::Connect) {
                 self.connections.insert(addr, vec![NetEvent::Accept]);
                 continue;
@@ -59,6 +67,8 @@ impl ServerState {
             match event {
                 // Connection handling is done above.
                 NetEvent::Connect => unreachable!(),
+                NetEvent::Disconnect => unreachable!(),
+                NetEvent::Close => self.kill = true,
 
                 // If a chunk is requested, send back in 8x8 chunks.
                 NetEvent::RequestChunk(x, y) => {
@@ -77,7 +87,7 @@ impl ServerState {
 
     pub fn step(&mut self, _timestamp: u64, _frametime: u64) {}
 
-    pub fn postframe(&mut self, _timestamp: u64) {
+    pub fn postframe(&mut self, _timestamp: u64) -> bool {
         // Send all pending net messages, clearing the them in the process.
         use std::mem::replace;
         let broadcast = replace(&mut self.broadcast, Vec::new());
@@ -86,5 +96,7 @@ impl ServerState {
             send_to(&self.socket, addr, events);
             send_to(&self.socket, addr, broadcast.iter().cloned());
         }
+
+        return self.kill;
     }
 }

@@ -9,6 +9,7 @@ use crate::shared::*;
 pub struct ClientState {
     // Misc:
     timer: usize,
+    exit: bool,
 
     // Input:
     cursor_x: f32,
@@ -73,6 +74,7 @@ impl ClientState {
 
         Self {
             timer: 0,
+            exit: false,
 
             cursor_x: 0.,
             cursor_y: 0.,
@@ -223,7 +225,7 @@ impl ClientState {
         );
 
         // Construct frame.
-        let frame = Some(RenderFrame {
+        let frame = self.exit.then(|| RenderFrame {
             view_x: self.view.0 as usize,
             view_y: self.view.1 as usize,
             view_w: self.view.2 as usize,

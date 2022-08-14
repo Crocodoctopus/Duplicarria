@@ -1,7 +1,7 @@
 use super::render_frame::RenderFrame;
 use std::collections::HashMap;
 
-fn load_textures() -> HashMap<String, ezgl::Texture2D> {
+fn load_textures() -> HashMap<&'static str, ezgl::Texture2D> {
     let root = crate::io::get_root().join("resources");
     let load_list = ["tile_sheet.png", "mask_sheet.png"];
     let mut hmap = HashMap::new();
@@ -9,49 +9,43 @@ fn load_textures() -> HashMap<String, ezgl::Texture2D> {
     for string in load_list {
         let mut texture = ezgl::Texture2D::new();
         texture.load_from_file(&root.join(string)).unwrap();
-        hmap.insert(string.to_owned(), texture);
+        hmap.insert(string, texture);
     }
 
     hmap
 }
 
-fn load_programs() -> HashMap<String, ezgl::Program> {
+fn load_programs() -> HashMap<&'static str, ezgl::Program> {
     let root = crate::io::get_root().join("resources");
     let mut hmap = HashMap::new();
 
-    let frag = ezgl::Shader::from_file(&root.join("fg_tile.frag")).unwrap();
-    let vert = ezgl::Shader::from_file(&root.join("fg_tile.vert")).unwrap();
     let program = ezgl::ProgramBuilder::new()
-        .with(frag)
-        .with(vert)
+        .with(ezgl::Shader::from_file(&root.join("fg_tile.frag")).unwrap())
+        .with(ezgl::Shader::from_file(&root.join("fg_tile.vert")).unwrap())
         .build()
         .unwrap();
-    hmap.insert(String::from("fg_tile"), program);
+    hmap.insert("fg_tile", program);
 
-    let frag = ezgl::Shader::from_file(&root.join("bg_tile.frag")).unwrap();
-    let vert = ezgl::Shader::from_file(&root.join("bg_tile.vert")).unwrap();
     let program = ezgl::ProgramBuilder::new()
-        .with(frag)
-        .with(vert)
+        .with(ezgl::Shader::from_file(&root.join("bg_tile.frag")).unwrap())
+        .with(ezgl::Shader::from_file(&root.join("bg_tile.vert")).unwrap())
         .build()
         .unwrap();
-    hmap.insert(String::from("bg_tile"), program);
+    hmap.insert("bg_tile", program);
 
-    let frag = ezgl::Shader::from_file(&root.join("light.frag")).unwrap();
-    let vert = ezgl::Shader::from_file(&root.join("light.vert")).unwrap();
     let program = ezgl::ProgramBuilder::new()
-        .with(frag)
-        .with(vert)
+        .with(ezgl::Shader::from_file(&root.join("light.frag")).unwrap())
+        .with(ezgl::Shader::from_file(&root.join("light.vert")).unwrap())
         .build()
         .unwrap();
-    hmap.insert(String::from("light"), program);
+    hmap.insert("light", program);
 
     hmap
 }
 
 pub struct RenderState {
-    textures: HashMap<String, ezgl::Texture2D>,
-    programs: HashMap<String, ezgl::Program>,
+    textures: HashMap<&'static str, ezgl::Texture2D>,
+    programs: HashMap<&'static str, ezgl::Program>,
 
     // General purpose IBO.
     ibo: ezgl::Buffer<u16>,
