@@ -1,12 +1,12 @@
 use array2d::FastArray2D;
 
 use super::input_event::*;
-use super::render_frame::RenderFrame;
+use super::game_frame::*;
 use crate::shared::net_event::*;
 use crate::shared::tile::*;
 use crate::shared::*;
 
-pub struct ClientState {
+pub struct GameUpdate {
     // Misc:
     timer: usize,
     exit: bool,
@@ -32,7 +32,7 @@ pub struct ClientState {
     background_tiles: FastArray2D<Tile>,
 }
 
-impl ClientState {
+impl GameUpdate {
     pub fn new(view_w: f32, view_h: f32) -> Self {
         //
         let chunk_load_buffer_size_px = (CHUNK_LOAD_BUFFER_SIZE * TILE_SIZE) as f32;
@@ -203,7 +203,7 @@ impl ClientState {
     pub fn postframe(
         &mut self,
         _timestamp: u64,
-    ) -> (Option<RenderFrame>, impl Iterator<Item = NetEvent>) {
+    ) -> (Option<GameFrame>, impl Iterator<Item = NetEvent>) {
         // Outbound net events.
         let mut net_events = vec![];
 
@@ -225,7 +225,7 @@ impl ClientState {
         );
 
         // Construct frame.
-        let frame = self.exit.then(|| RenderFrame {
+        let frame = (!self.exit).then(|| GameFrame {
             view_x: self.view.0 as usize,
             view_y: self.view.1 as usize,
             view_w: self.view.2 as usize,

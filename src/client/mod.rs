@@ -1,20 +1,20 @@
-mod client_state;
+mod game_update;
 mod functions;
 pub mod input_event;
-mod render_frame;
-mod render_state;
+mod game_frame;
+mod game_render;
 
 use crossbeam_channel::{Receiver, Sender};
 use glutin::{NotCurrent, WindowedContext};
 use std::net::UdpSocket;
 use std::{thread, thread::JoinHandle};
 
-use self::client_state::*;
-use self::input_event::*;
-use self::render_frame::*;
-use self::render_state::*;
-use crate::net::*;
 use crate::shared::net_event::NetEvent;
+use self::game_update::*;
+use self::input_event::*;
+use self::game_frame::*;
+use self::game_render::*;
+use crate::net::*;
 use crate::time::*;
 
 pub fn time<T>(t: &mut u64, mut f: impl FnMut() -> T) -> T {
@@ -47,7 +47,7 @@ pub fn launch_client(
 }
 
 pub fn client_update_thread(
-    render_send: Sender<RenderFrame>,
+    render_send: Sender<GameFrame>,
     input_recv: Receiver<InputEvent>,
     (window_w, window_h): (f32, f32),
 ) {
@@ -62,7 +62,7 @@ pub fn client_update_thread(
     let mut postframe_us = 0u64;
 
     // Create client state.
-    let mut client_state = ClientState::new(window_w, window_h);
+    let mut game_update = GameUpdate::new(window_w, window_h);
 
     // Create a server (and connect).
     let (server_port, server_handle) = crate::server::launch_server(0);
@@ -77,21 +77,21 @@ pub fn client_update_thread(
 
         // Run preframe.
         time(&mut preframe_us, || {
-            client_state.preframe(timestamp, input_recv.try_iter(), recv(&socket).into_iter())
+            game_update.preframe(timestamp, input_recv.try_iter(), recv(&socket).into_iter())
         });
 
         // Simulate the time between timestamp and next_timestamp.
         time(&mut step_us, || {
             let frames = (next_timestamp - timestamp) / frametime;
             for _ in 0..frames {
-                client_state.step(timestamp, frametime);
+                game_update.step(timestamp, frametime);
                 timestamp += frametime;
                 print_acc += 1; // This occurs once every 16.666ms
             }
         });
 
         // Run postframe.
-        let (frame, net_events) = time(&mut postframe_us, || client_state.postframe(timestamp));
+        let (frame, net_events) = time(&mut postframe_us, || game_update.postframe(timestamp));
 
         // Send frame to render thread.
         match frame {
@@ -116,7 +116,10 @@ pub fn client_update_thread(
     }
 
     // Send kill.
-    send(&socket, vec![NetEvent::Close]);
+    send(
+        &socket,
+        vec![NetEvent::Close],
+    );
 
     // Wait for server shutdown.
     server_handle.join().unwrap();
@@ -127,7 +130,7 @@ pub fn client_update_thread(
 
 pub fn client_render_thread(
     windowed_context: WindowedContext<NotCurrent>,
-    render_recv: Receiver<RenderFrame>,
+    render_recv: Receiver<GameFrame>,
 ) {
     println!("[Client] Render thread start.");
 
@@ -146,14 +149,14 @@ pub fn client_render_thread(
     };
 
     // Initialize render state.
-    let mut render_state = RenderState::new();
+    let mut game_render = GameRender::new();
 
     for frame in render_recv.iter().skip(1) {
         // Render frame.
         unsafe {
             ezgl::gl::Clear(ezgl::gl::COLOR_BUFFER_BIT | ezgl::gl::DEPTH_BUFFER_BIT);
         }
-        render_state.render(frame);
+        game_render.render(frame);
         windowed_context.swap_buffers().unwrap();
     }
 

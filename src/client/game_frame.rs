@@ -1,7 +1,7 @@
+use crate::array2d::Array2D;
 use crate::shared::tile::Tile;
-use array2d::Array2D;
 
-pub struct RenderFrame {
+pub struct GameFrame {
     // View data.
     pub view_x: usize,
     pub view_y: usize,
