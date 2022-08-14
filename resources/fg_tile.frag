@@ -1,12 +1,10 @@
-#version 310 es
-
-precision mediump float;
+#version 410
 
 in vec2 frag_tile_uv;
 in vec2 frag_mask_uv;
 
-layout(location = 1) uniform sampler2D tile_sheet;
-layout(location = 2) uniform sampler2D mask_sheet;
+uniform sampler2D tile_sheet;
+uniform sampler2D mask_sheet;
 
 out vec4 rgba;
 

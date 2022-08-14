@@ -1,19 +1,21 @@
 use crate::shared::tile::*;
+use crate::shared::*;
 use array2d::*;
 use std::collections::VecDeque;
-use crate::shared::*;
 
 pub fn create_light_map(
     (x, y, w, h): (f32, f32, f32, f32),
     fg_tiles: &FastArray2D<Tile>,
     bg_tiles: &FastArray2D<Tile>,
-    timer: &mut usize,
+    _timer: &mut usize,
 ) -> (usize, usize, Array2D<u8>) {
     // Generate a rectangle (in tiles) representing the light map.
     let x1 = (x / TILE_SIZE as f32 - MAX_LIGHT_DISTANCE as f32).floor() as usize;
     let y1 = (y / TILE_SIZE as f32 - MAX_LIGHT_DISTANCE as f32).floor() as usize;
-    let x2 = (x / TILE_SIZE as f32 + w / TILE_SIZE as f32 + MAX_LIGHT_DISTANCE as f32).ceil() as usize;
-    let y2 = (y / TILE_SIZE as f32 + h / TILE_SIZE as f32 + MAX_LIGHT_DISTANCE as f32).ceil() as usize;
+    let x2 =
+        (x / TILE_SIZE as f32 + w / TILE_SIZE as f32 + MAX_LIGHT_DISTANCE as f32).ceil() as usize;
+    let y2 =
+        (y / TILE_SIZE as f32 + h / TILE_SIZE as f32 + MAX_LIGHT_DISTANCE as f32).ceil() as usize;
 
     // Light map dimensions.
     let light_map_w: usize = x2 - x1;
@@ -21,7 +23,8 @@ pub fn create_light_map(
 
     // Generate light and fade map.
     let mut fade_map: Box<[u8]> = vec![OPAQUE_FADE; light_map_w * light_map_h].into_boxed_slice();
-    let mut light_map: Box<[u8]> = vec![MIN_BRIGHTNESS; light_map_w * light_map_h].into_boxed_slice();
+    let mut light_map: Box<[u8]> =
+        vec![MIN_BRIGHTNESS; light_map_w * light_map_h].into_boxed_slice();
 
     // Make edges of light map fully lit, to prevent OOB during light calculation.
     let to_light_map_index = |x: usize, y: usize| x + y * light_map_w;
@@ -65,7 +68,6 @@ pub fn create_light_map(
         light_map[light_source as usize] = 0;
     }*/
 
-    
     while let Some(index) = queue.pop_front() {
         let brightness = light_map[index];
         let fade = fade_map[index];
@@ -99,7 +101,6 @@ pub fn create_light_map(
             queue.push_back(next_index);
         }
     }
-
 
     (
         x1,

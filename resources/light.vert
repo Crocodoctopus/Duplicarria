@@ -1,9 +1,9 @@
-#version 310 es
+#version 410
 
-layout(location = 0) in vec2 vert_xy;
-layout(location = 1) in vec2 vert_uv;
+in vec2 vert_xy;
+in vec2 vert_uv;
 
-layout(location = 0) uniform mat3 view_matrix;
+uniform mat3 view_matrix;
 
 out vec2 frag_uv;
 

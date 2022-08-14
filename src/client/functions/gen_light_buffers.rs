@@ -1,6 +1,6 @@
+use crate::shared::*;
 use array2d::Array2D;
 use ezgl::{gl, Buffer, Texture2D};
-use crate::shared::*;
 
 pub fn gen_light_buffers(
     xy: &mut Buffer<(f32, f32)>,
@@ -36,7 +36,7 @@ pub fn gen_light_buffers(
 
     // Generate texture
     let mut rgba: Vec<u8> = Vec::with_capacity(4 * w * h);
-    values.for_each(|x, y, v| {
+    values.for_each(|_x, _y, v| {
         //let a = (256. - 0.284 * (*v as f32 - 30.).powi(2)) as u8;
         let mut a = 0;
         if *v == MIN_BRIGHTNESS {

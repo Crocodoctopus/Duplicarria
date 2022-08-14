@@ -76,11 +76,7 @@ impl<T: Copy + std::fmt::Debug> Array2D<T> {
         }
     }
 
-    pub fn from_closure(
-        width: usize,
-        height: usize,
-        f: impl Fn(usize, usize) -> T,
-    ) -> Self {
+    pub fn from_closure(width: usize, height: usize, f: impl Fn(usize, usize) -> T) -> Self {
         let mut arr = Vec::with_capacity(width * height);
         for y in 0..height {
             for x in 0..width {

@@ -1,4 +1,4 @@
-use array2d::{Array2D, FastArray2D};
+use array2d::FastArray2D;
 
 use super::input_event::*;
 use super::render_frame::RenderFrame;
@@ -32,8 +32,8 @@ pub struct ClientState {
 }
 
 // Temp
-const view_w: f32 = 1350.;
-const view_h: f32 = 900.;
+const VIEW_W: f32 = 1350.;
+const VIEW_H: f32 = 900.;
 
 impl ClientState {
     pub fn new() -> Self {
@@ -42,8 +42,8 @@ impl ClientState {
         let chunk_size_px = (TILE_SIZE * CHUNK_SIZE) as f32;
 
         // Get number of chunks that will fit on screen (plus 2 chunk border on all sides);
-        let chunks_v = ((view_w + 2. * chunk_load_buffer_size_px) / chunk_size_px).ceil() as usize;
-        let chunks_h = ((view_h + 2. * chunk_load_buffer_size_px) / chunk_size_px).ceil() as usize;
+        let chunks_v = ((VIEW_W + 2. * chunk_load_buffer_size_px) / chunk_size_px).ceil() as usize;
+        let chunks_h = ((VIEW_H + 2. * chunk_load_buffer_size_px) / chunk_size_px).ceil() as usize;
 
         // Get smallest base2 that can fit chunks_v/chunks_h.
         let max_visible_chunks_v_base2 = (chunks_v as f32).log2().ceil() as usize;
@@ -69,7 +69,11 @@ impl ClientState {
             |_, _| Tile::None,
         );
 
-        println!("Chunks: {:?}, Tiles: {:?}", chunks.size(), foreground_tiles.size());
+        println!(
+            "Chunks: {:?}, Tiles: {:?}",
+            chunks.size(),
+            foreground_tiles.size()
+        );
 
         Self {
             timer: 0,
@@ -83,7 +87,7 @@ impl ClientState {
             left_queue: 0,
             right_queue: 0,
 
-            view: (32., 32., view_w, view_h),
+            view: (32., 32., VIEW_W, VIEW_H),
 
             chunks,
 
@@ -206,11 +210,7 @@ impl ClientState {
         let mut net_events = vec![];
 
         // Request from the server any chunks that may now be onscreen (Should client be the one to ask this?).
-        super::functions::request_chunks_from_server(
-            self.view,
-            &mut self.chunks,
-            &mut net_events,
-        );
+        super::functions::request_chunks_from_server(self.view, &mut self.chunks, &mut net_events);
 
         // Clone the visible tiles.
         let (tiles_x, tiles_y, foreground_tiles) =

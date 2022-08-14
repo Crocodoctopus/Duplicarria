@@ -9,12 +9,19 @@ use glutin::{NotCurrent, WindowedContext};
 use std::net::UdpSocket;
 use std::{thread, thread::JoinHandle};
 
-use crate::net::*;
-use crate::time::*;
 use self::client_state::*;
 use self::input_event::*;
 use self::render_frame::*;
 use self::render_state::*;
+use crate::net::*;
+use crate::time::*;
+
+pub fn time<T>(t: &mut u64, mut f: impl FnMut() -> T) -> T {
+    let start = crate::time::get_microseconds_as_u64();
+    let out = f();
+    *t += crate::time::get_microseconds_as_u64() - start;
+    out
+}
 
 pub fn launch_client(
     windowed_context: WindowedContext<NotCurrent>,
@@ -42,15 +49,14 @@ pub fn client_update_thread(
     input_recv: Receiver<InputEvent>,
 ) -> ! {
     println!("[Client] Update thread start.");
-    let frametime = 16_666; // ns
+    let frametime = 16_666; // us
     let mut timestamp = get_microseconds_as_u64();
 
     // Debug.
     let mut print_acc = 0;
-    let mut preframe_us = 0.;
-    let mut step_us = 0.;
-    let mut postframe_us = 0.;
-    let mut last_print = get_microseconds_as_u64();
+    let mut preframe_us = 0u64;
+    let mut step_us = 0u64;
+    let mut postframe_us = 0u64;
 
     // Create client state.
     let mut client_state = ClientState::new();
@@ -66,64 +72,43 @@ pub fn client_update_thread(
         // Wait until enough has passed for at least 1 frame.
         let next_timestamp = wait(timestamp + frametime);
 
-        // Preframe timing group:
-        {
-            let start = crate::time::get_microseconds_as_u64();
+        // Run preframe.
+        time(&mut preframe_us, || {
+            client_state.preframe(timestamp, input_recv.try_iter(), recv(&socket).into_iter())
+        });
 
-            // Run preframe.
-            client_state.preframe(timestamp, input_recv.try_iter(), recv(&socket).into_iter());
-
-            preframe_us += (crate::time::get_microseconds_as_u64() - start) as f32 / 1000.;
-        }
-
-        // Step timing group:
-        {
-            let start = crate::time::get_microseconds_as_u64();
-
-            // Simulate the time between timestamp and next_timestamp.
+        // Simulate the time between timestamp and next_timestamp.
+        time(&mut step_us, || {
             let frames = (next_timestamp - timestamp) / frametime;
             for _ in 0..frames {
                 client_state.step(timestamp, frametime);
                 timestamp += frametime;
+                print_acc += 1; // This occurs once every 16.666ms
             }
+        });
 
-            step_us += (crate::time::get_microseconds_as_u64() - start) as f32 / 1000.;
-        }
+        // Run postframe.
+        let (frame, net_events) = time(&mut postframe_us, || client_state.postframe(timestamp));
 
-        // Postframe timing group:
-        {
-            let start = crate::time::get_microseconds_as_u64();
-
-            // Run postframe.
-            let (frame, net_events) = client_state.postframe(timestamp);
-
-            // Send frame to render thread.
-            match frame {
-                Some(rs) => render_send.send(rs).unwrap(),
-                None => break,
-            };
-
-            // Send net events to server.
-            send(&socket, net_events);
-
-            postframe_us += (crate::time::get_microseconds_as_u64() - start) as f32 / 1000.;
+        // Send frame to render thread.
+        match frame {
+            Some(rs) => render_send.send(rs).unwrap(),
+            None => break,
         };
 
+        // Send net events to server.
+        send(&socket, net_events);
+
         // Print fps.
-        print_acc += 1;
-        if timestamp - last_print > 5000000 {
-            last_print = timestamp;
+        if print_acc > 5_000_000 / frametime {
             println!(
                 "Frame: {:.03}ms\n  Preframe: {:.03}ms\n  Step: {:.03}ms\n  Postframe: {:.03}ms",
-                (preframe_us + step_us + postframe_us) / print_acc as f32,
-                preframe_us / print_acc as f32,
-                step_us / print_acc as f32,
-                postframe_us / print_acc as f32,
+                (preframe_us + step_us + postframe_us) as f32 / (print_acc as f32 * 1000.),
+                preframe_us as f32 / (print_acc as f32 * 1000.),
+                step_us as f32 / (print_acc as f32 * 1000.),
+                postframe_us as f32 / (print_acc as f32 * 1000.),
             );
-            print_acc = 0;
-            preframe_us = 0.;
-            step_us = 0.;
-            postframe_us = 0.;
+            (print_acc, preframe_us, step_us, postframe_us) = (0, 0, 0, 0);
         }
     }
 

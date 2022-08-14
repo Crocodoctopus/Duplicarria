@@ -4,34 +4,31 @@
 #[macro_use]
 extern crate lazy_static;
 extern crate bincode;
-extern crate glutin;
 extern crate cgmath;
 extern crate crossbeam_channel;
+extern crate glutin;
 #[macro_use]
 extern crate serde;
 extern crate ezgl;
 
 //mod array2d;
+mod array2d;
 mod client;
 mod io;
 mod net;
 mod server;
 mod shared;
 mod time;
-mod array2d;
 
 use glutin::{
-    dpi::{LogicalSize, PhysicalSize},
-    event_loop::EventLoop,
-    window::WindowBuilder,
-    Api, ContextBuilder, GlRequest,
+    dpi::LogicalSize, event_loop::EventLoop, window::WindowBuilder, Api, ContextBuilder, GlRequest,
 };
 
 fn main() {
     // Build window and event loop.
     let event_loop = EventLoop::new();
     let windowed_context = ContextBuilder::new()
-        .with_gl(GlRequest::Specific(Api::OpenGl, (4, 3)))
+        .with_gl(GlRequest::Specific(Api::OpenGl, (4, 1)))
         .with_vsync(true)
         .build_windowed(
             WindowBuilder::new()

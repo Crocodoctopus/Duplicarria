@@ -122,12 +122,12 @@ impl RenderState {
 
         // Render tiles.
         ezgl::Draw::start_tri_draw(tile_count as u32 / 2, &self.programs["bg_tile"], &self.ibo)
-            .with_buffer(&self.tile_xyz, 0)
-            .with_buffer(&self.tile_tex_uv, 1)
-            .with_buffer(&self.tile_msk_uv, 2)
-            .with_uniform(view.as_ref() as &[[f32; 3]; 3], 0)
-            .with_texture(&self.textures["tile_sheet.png"], 1)
-            .with_texture(&self.textures["mask_sheet.png"], 2)
+            .with_buffer(&self.tile_xyz, "vert_tile_xyz")
+            .with_buffer(&self.tile_tex_uv, "vert_tile_uv")
+            .with_buffer(&self.tile_msk_uv, "vert_mask_uv")
+            .with_uniform(view.as_ref() as &[[f32; 3]; 3], "view_matrix")
+            .with_texture(&self.textures["tile_sheet.png"], "tile_sheet")
+            .with_texture(&self.textures["mask_sheet.png"], "mask_sheet")
             .draw();
 
         // Fill fg tile buffers with data
@@ -142,12 +142,12 @@ impl RenderState {
 
         // Render tiles.
         ezgl::Draw::start_tri_draw(tile_count as u32 / 2, &self.programs["fg_tile"], &self.ibo)
-            .with_buffer(&self.tile_xyz, 0)
-            .with_buffer(&self.tile_tex_uv, 1)
-            .with_buffer(&self.tile_msk_uv, 2)
-            .with_uniform(view.as_ref() as &[[f32; 3]; 3], 0)
-            .with_texture(&self.textures["tile_sheet.png"], 1)
-            .with_texture(&self.textures["mask_sheet.png"], 2)
+            .with_buffer(&self.tile_xyz, "vert_tile_xyz")
+            .with_buffer(&self.tile_tex_uv, "vert_tile_uv")
+            .with_buffer(&self.tile_msk_uv, "vert_mask_uv")
+            .with_uniform(view.as_ref() as &[[f32; 3]; 3], "view_matrix")
+            .with_texture(&self.textures["tile_sheet.png"], "tile_sheet")
+            .with_texture(&self.textures["mask_sheet.png"], "mask_sheet")
             .draw();
 
         // Fill light buffers with data.
@@ -174,10 +174,10 @@ impl RenderState {
             );
         }
         ezgl::Draw::start_tri_draw(2, &self.programs["light"], &self.ibo)
-            .with_buffer(&self.light_xy, 0)
-            .with_buffer(&self.light_uv, 1)
-            .with_uniform(view.as_ref() as &[[f32; 3]; 3], 0)
-            .with_texture(&self.light_tex, 1)
+            .with_buffer(&self.light_xy, "vert_xy")
+            .with_buffer(&self.light_uv, "vert_uv")
+            .with_uniform(view.as_ref() as &[[f32; 3]; 3], "view_matrix")
+            .with_texture(&self.light_tex, "light_map")
             .enable_blend(ezgl::gl::SRC_ALPHA, ezgl::gl::ONE_MINUS_SRC_ALPHA)
             .draw();
     }

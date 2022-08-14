@@ -1,10 +1,10 @@
-#version 310 es
+#version 410
 
-layout(location = 0) in vec3 vert_tile_xyz;
-layout(location = 1) in vec2 vert_tile_uv;
-layout(location = 2) in vec2 vert_mask_uv;
+in vec3 vert_tile_xyz;
+in vec2 vert_tile_uv;
+in vec2 vert_mask_uv;
 
-layout(location = 0) uniform mat3 view_matrix;
+uniform mat3 view_matrix;
 
 out vec2 frag_tile_uv;
 out vec2 frag_mask_uv;

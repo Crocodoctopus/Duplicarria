@@ -1,10 +1,8 @@
-#version 310 es
-
-precision mediump float;
+#version 410
 
 in vec2 frag_uv;
 
-layout(location = 1) uniform sampler2D light_map;
+uniform sampler2D light_map;
 
 out vec4 rgba;
 

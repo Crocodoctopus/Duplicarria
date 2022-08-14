@@ -3,8 +3,8 @@ mod server_state;
 use std::net::UdpSocket;
 use std::{thread, thread::JoinHandle};
 
-use crate::time::*;
 use self::server_state::*;
+use crate::time::*;
 
 pub fn launch_server(port: u16) -> (u16, JoinHandle<()>) {
     // Create socket.
