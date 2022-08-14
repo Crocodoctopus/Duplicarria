@@ -5,7 +5,7 @@ use std::net::{SocketAddr, UdpSocket};
 use crate::shared::net_event::*;
 use crate::shared::tile::*;
 
-pub struct ServerState {
+pub struct GameUpdate {
     kill: bool,
 
     broadcast: Vec<NetEvent>,
@@ -15,7 +15,7 @@ pub struct ServerState {
     tiles: Array2D<Tile>,
 }
 
-impl ServerState {
+impl GameUpdate {
     pub fn new() -> Self {
         // Create 1024 * 256 chunk world.
         let tiles = Array2D::from_closure(8 * 1024, 8 * 256, |x, y| {
