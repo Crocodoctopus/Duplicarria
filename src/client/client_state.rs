@@ -31,19 +31,15 @@ pub struct ClientState {
     background_tiles: FastArray2D<Tile>,
 }
 
-// Temp
-const VIEW_W: f32 = 1350.;
-const VIEW_H: f32 = 900.;
-
 impl ClientState {
-    pub fn new() -> Self {
+    pub fn new(view_w: f32, view_h: f32) -> Self {
         //
         let chunk_load_buffer_size_px = (CHUNK_LOAD_BUFFER_SIZE * TILE_SIZE) as f32;
         let chunk_size_px = (TILE_SIZE * CHUNK_SIZE) as f32;
 
         // Get number of chunks that will fit on screen (plus 2 chunk border on all sides);
-        let chunks_v = ((VIEW_W + 2. * chunk_load_buffer_size_px) / chunk_size_px).ceil() as usize;
-        let chunks_h = ((VIEW_H + 2. * chunk_load_buffer_size_px) / chunk_size_px).ceil() as usize;
+        let chunks_v = ((view_w + 2. * chunk_load_buffer_size_px) / chunk_size_px).ceil() as usize;
+        let chunks_h = ((view_h + 2. * chunk_load_buffer_size_px) / chunk_size_px).ceil() as usize;
 
         // Get smallest base2 that can fit chunks_v/chunks_h.
         let max_visible_chunks_v_base2 = (chunks_v as f32).log2().ceil() as usize;
@@ -87,7 +83,7 @@ impl ClientState {
             left_queue: 0,
             right_queue: 0,
 
-            view: (32., 32., VIEW_W, VIEW_H),
+            view: (32., 32., view_w, view_h),
 
             chunks,
 

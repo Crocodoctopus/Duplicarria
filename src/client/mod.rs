@@ -30,9 +30,10 @@ pub fn launch_client(
     let (render_send, render_recv) = crossbeam_channel::bounded(1);
 
     // Spawn client update thread.
+    let glutin::dpi::PhysicalSize { width, height } = windowed_context.window().inner_size();
     let update_handle = thread::Builder::new()
         .name(String::from("client_update_thread"))
-        .spawn(move || client_update_thread(render_send, input_recv))
+        .spawn(move || client_update_thread(render_send, input_recv, (width as _, height as _)))
         .unwrap();
 
     // Spawn client render thread.
@@ -47,6 +48,7 @@ pub fn launch_client(
 pub fn client_update_thread(
     render_send: Sender<RenderFrame>,
     input_recv: Receiver<InputEvent>,
+    (window_w, window_h): (f32, f32),
 ) -> ! {
     println!("[Client] Update thread start.");
     let frametime = 16_666; // us
@@ -59,7 +61,7 @@ pub fn client_update_thread(
     let mut postframe_us = 0u64;
 
     // Create client state.
-    let mut client_state = ClientState::new();
+    let mut client_state = ClientState::new(window_w, window_h);
 
     // Create a server (and connect).
     let (server_port, server_handle) = crate::server::launch_server(0);
