@@ -46,8 +46,7 @@ pub fn server_update_thread(socket: UdpSocket) {
 
         // Run postframe.
         use crate::shared::net_event::NetEvent;
-        let send_to_fn =
-            |addr, net_events: Vec<NetEvent>| send_to(&socket, addr, net_events);
+        let send_to_fn = |addr, net_events: Vec<NetEvent>| send_to(&socket, addr, net_events);
         if game_update.postframe(timestamp, send_to_fn) == true {
             break;
         }
@@ -56,12 +55,3 @@ pub fn server_update_thread(socket: UdpSocket) {
     println!("[Server] Update thread closed.");
     return;
 }
-
-// Send all pending net messages, clearing the them in the process.
-/*use std::mem::replace;
-let broadcast = replace(&mut self.broadcast, Vec::new());
-for (&addr, events) in self.connections.iter_mut() {
-    let events = replace(events, Vec::new());
-    send_to(&self.socket, addr, events);
-    send_to(&self.socket, addr, broadcast.iter().cloned());
-}*/

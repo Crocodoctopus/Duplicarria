@@ -8,10 +8,12 @@ pub fn request_chunks_from_server(
     net_events: &mut Vec<NetEvent>,
 ) {
     // Map view to chunk space.
-    let x1 = ((x - (CHUNK_LOAD_BUFFER_SIZE * TILE_SIZE) as f32) / 128.) as usize;
-    let y1 = ((y - (CHUNK_LOAD_BUFFER_SIZE * TILE_SIZE) as f32) / 128.) as usize;
-    let x2 = ((x + w + (CHUNK_LOAD_BUFFER_SIZE * TILE_SIZE) as f32) / 128.).ceil() as usize;
-    let y2 = ((y + h + (CHUNK_LOAD_BUFFER_SIZE * TILE_SIZE) as f32) / 128.).ceil() as usize;
+    const CHHUNK_LOAD_BUFFER_SIZE_PX: f32 = (CHUNK_LOAD_BUFFER_SIZE * TILE_SIZE) as f32;
+    const CHUNK_SIZE_PX: f32 = (CHUNK_SIZE * TILE_SIZE) as f32;
+    let x1 = ((x - CHHUNK_LOAD_BUFFER_SIZE_PX) / CHUNK_SIZE_PX) as usize;
+    let y1 = ((y - CHHUNK_LOAD_BUFFER_SIZE_PX) / CHUNK_SIZE_PX) as usize;
+    let x2 = ((x + w + CHHUNK_LOAD_BUFFER_SIZE_PX) / CHUNK_SIZE_PX).ceil() as usize;
+    let y2 = ((y + h + CHHUNK_LOAD_BUFFER_SIZE_PX) / CHUNK_SIZE_PX).ceil() as usize;
 
     // Updating more chunks than exist is a bug.
     assert!(x2 - x1 <= chunks.size().0);

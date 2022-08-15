@@ -1,6 +1,7 @@
-use array2d::*;
+use crate::array2d::*;
+use crate::shared::*;
 use std::collections::HashMap;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::SocketAddr;
 
 use crate::shared::net_event::*;
 use crate::shared::tile::*;
@@ -8,17 +9,17 @@ use crate::shared::tile::*;
 pub struct GameUpdate {
     kill: bool,
 
-    broadcast: Vec<NetEvent>,
     connections: HashMap<SocketAddr, Vec<NetEvent>>,
 
     //
-    tiles: Array2D<Tile>,
+    foreground_tiles: Array2D<Tile>,
+    background_tiles: Array2D<Tile>,
 }
 
 impl GameUpdate {
     pub fn new() -> Self {
         // Create 1024 * 256 chunk world.
-        let tiles = Array2D::from_closure(8 * 1024, 8 * 256, |x, y| {
+        let foreground_tiles = Array2D::from_closure(CHUNK_SIZE * 512, CHUNK_SIZE * 128, |x, y| {
             let h = (7.0 * ((x as f32 / 4.).sin() + 1.0) / 2.0) as usize + 15;
             if y < h {
                 return Tile::None;
@@ -32,10 +33,12 @@ impl GameUpdate {
         Self {
             kill: false,
 
-            broadcast: Vec::new(),
             connections: HashMap::new(),
 
-            tiles,
+            background_tiles: foreground_tiles
+                .clone_sub(0..CHUNK_SIZE * 512, 0..CHUNK_SIZE * 128)
+                .unwrap(),
+            foreground_tiles,
         }
     }
 
@@ -44,6 +47,18 @@ impl GameUpdate {
         _timestamp: u64,
         net_events: impl Iterator<Item = (NetEvent, SocketAddr)>,
     ) {
+        // Add NetEvent to all NetEvent vectors, except for the one that matches addr
+        let partial_broadcast = |connections: &mut HashMap<SocketAddr, Vec<NetEvent>>,
+                                 addr: SocketAddr,
+                                 event: NetEvent| {
+            connections
+                .iter_mut()
+                .filter(|(&k, _)| k == addr)
+                .for_each(|(_, vec)| {
+                    vec.push(event.clone());
+                })
+        };
+
         for (event, addr) in net_events {
             // Handle connect.
             if matches!(event, NetEvent::Connect) && !self.connections.contains_key(&addr) {
@@ -59,7 +74,6 @@ impl GameUpdate {
             };
 
             // Handle net message.
-            println!("[Server] {addr:?}: {event:?}");
             match event {
                 // Connection handling is done above.
                 NetEvent::Connect => {} // Redundant connect
@@ -69,16 +83,44 @@ impl GameUpdate {
 
                 NetEvent::Close => self.kill = true,
 
-                // If a chunk is requested, send back in 8x8 chunks.
+                // On chunk request
                 NetEvent::RequestChunk(x, y) => {
-                    let (xus, yus) = (x as usize, y as usize);
-                    let chunk = self
-                        .tiles
-                        .clone_sub(8 * xus..8 * xus + 8, 8 * yus..8 * yus + 8)
-                        .unwrap()
-                        .into_raw();
-                    connection.push(NetEvent::UpdateChunk(x, y, chunk));
+                    let xr = CHUNK_SIZE * x as usize..CHUNK_SIZE * (x as usize + 1);
+                    let yr = CHUNK_SIZE * y as usize..CHUNK_SIZE * (y as usize + 1);
+                    let fg = self
+                        .foreground_tiles
+                        .clone_sub(xr.clone(), yr.clone())
+                        .unwrap();
+                    let bg = self
+                        .background_tiles
+                        .clone_sub(xr.clone(), yr.clone())
+                        .unwrap();
+                    connection.push(NetEvent::UpdateForegroundChunk(x, y, fg.into_raw()));
+                    connection.push(NetEvent::UpdateBackgroundChunk(x, y, bg.into_raw()));
                 }
+
+                //
+                NetEvent::BreakForeground(x, y) => {
+                    match self.foreground_tiles.get_mut(x as _, y as _) {
+                        Some(x) => {
+                            *x = Tile::None;
+                            partial_broadcast(&mut self.connections, addr, event);
+                        }
+                        None => {}
+                    }
+                }
+
+                //
+                NetEvent::BreakBackground(x, y) => {
+                    match self.background_tiles.get_mut(x as _, y as _) {
+                        Some(x) => {
+                            *x = Tile::None;
+                            partial_broadcast(&mut self.connections, addr, event);
+                        }
+                        None => {}
+                    }
+                }
+
                 _ => {}
             }
         }
@@ -94,9 +136,7 @@ impl GameUpdate {
         use std::mem::take;
         for (&addr, events) in self.connections.iter_mut() {
             send_to(addr, take(events));
-            send_to(addr, self.broadcast.clone());
         }
-        self.broadcast.clear();
 
         return self.kill;
     }

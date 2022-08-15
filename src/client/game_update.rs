@@ -25,6 +25,7 @@ pub struct GameUpdate {
     view: (f32, f32, f32, f32), // x, y, w, h
 
     // Network:
+    outbound: Vec<NetEvent>,
     chunks: FastArray2D<(u16, u16)>,
 
     // Tiles:
@@ -38,7 +39,7 @@ impl GameUpdate {
         let chunk_load_buffer_size_px = (CHUNK_LOAD_BUFFER_SIZE * TILE_SIZE) as f32;
         let chunk_size_px = (TILE_SIZE * CHUNK_SIZE) as f32;
 
-        // Get number of chunks that will fit on screen (plus 2 chunk border on all sides);
+        // Get number of chunks that will fit on screen.
         let chunks_v = ((view_w + 2. * chunk_load_buffer_size_px) / chunk_size_px).ceil() as usize;
         let chunks_h = ((view_h + 2. * chunk_load_buffer_size_px) / chunk_size_px).ceil() as usize;
 
@@ -55,14 +56,14 @@ impl GameUpdate {
 
         // Create tile array (8 x 8) times larger than above array.
         let foreground_tiles = FastArray2D::from_closure(
-            max_visible_chunks_v_base2 + 3,
-            max_visible_chunks_h_base2 + 3,
+            max_visible_chunks_v_base2 + CHUNK_SIZE_LOG2,
+            max_visible_chunks_h_base2 + CHUNK_SIZE_LOG2,
             |_, _| Tile::None,
         );
 
         let background_tiles = FastArray2D::from_closure(
-            max_visible_chunks_v_base2 + 3,
-            max_visible_chunks_h_base2 + 3,
+            max_visible_chunks_v_base2 + CHUNK_SIZE_LOG2,
+            max_visible_chunks_h_base2 + CHUNK_SIZE_LOG2,
             |_, _| Tile::None,
         );
 
@@ -87,6 +88,7 @@ impl GameUpdate {
 
             view: (32., 32., view_w, view_h),
 
+            outbound: Vec::new(),
             chunks,
 
             foreground_tiles,
@@ -104,18 +106,23 @@ impl GameUpdate {
         for net in net_events {
             match net {
                 NetEvent::Accept => {}
-                NetEvent::UpdateChunk(x, y, tiles) => {
+                NetEvent::UpdateForegroundChunk(x, y, tiles) => {
                     // Verify the incoming chunk exists in the world still, update tiles.
                     if &(x, y) == self.chunks.get_wrapping(x as usize, y as usize) {
                         self.foreground_tiles.splice_wrapping(
-                            8 * x as usize..8 * x as usize + 8,
-                            8 * y as usize..8 * y as usize + 8,
+                            CHUNK_SIZE * x as usize..CHUNK_SIZE * (x as usize + 1),
+                            CHUNK_SIZE * y as usize..CHUNK_SIZE * (y as usize + 1),
                             tiles.clone(),
                         );
+                    }
+                }
+                NetEvent::UpdateBackgroundChunk(x, y, tiles) => {
+                    // Verify the incoming chunk exists in the world still, update tiles.
+                    if &(x, y) == self.chunks.get_wrapping(x as usize, y as usize) {
                         self.background_tiles.splice_wrapping(
-                            8 * x as usize..8 * x as usize + 8,
-                            8 * y as usize..8 * y as usize + 8,
-                            tiles,
+                            CHUNK_SIZE * x as usize..CHUNK_SIZE * (x as usize + 1),
+                            CHUNK_SIZE * y as usize..CHUNK_SIZE * (y as usize + 1),
+                            tiles.clone(),
                         );
                     }
                 }
@@ -165,6 +172,8 @@ impl GameUpdate {
             let x = ((self.view.0 + self.cursor_x) / 16.) as usize;
             let y = ((self.view.1 + self.cursor_y) / 16.) as usize;
             *self.foreground_tiles.get_wrapping_mut(x, y) = Tile::None;
+            self.outbound
+                .push(NetEvent::BreakForeground(x as _, y as _));
         }
 
         // On right click
@@ -172,6 +181,8 @@ impl GameUpdate {
             let x = ((self.view.0 + self.cursor_x) / 16.) as usize;
             let y = ((self.view.1 + self.cursor_y) / 16.) as usize;
             *self.background_tiles.get_wrapping_mut(x, y) = Tile::None;
+            self.outbound
+                .push(NetEvent::BreakBackground(x as _, y as _));
         }
     }
 
@@ -179,16 +190,16 @@ impl GameUpdate {
         let dt = frametime as f32 / 1_000_000.;
 
         if self.up_queue & 1 > 0 {
-            self.view.1 -= 60. * dt;
+            self.view.1 -= 160. * dt;
         }
         if self.down_queue & 1 > 0 {
-            self.view.1 += 60. * dt;
+            self.view.1 += 160. * dt;
         }
         if self.left_queue & 1 > 0 {
-            self.view.0 -= 60. * dt;
+            self.view.0 -= 160. * dt;
         }
         if self.right_queue & 1 > 0 {
-            self.view.0 += 60. * dt;
+            self.view.0 += 160. * dt;
         }
 
         // Ensure the view is always inbounds.
@@ -204,11 +215,12 @@ impl GameUpdate {
         &mut self,
         _timestamp: u64,
     ) -> (Option<GameFrame>, impl IntoIterator<Item = NetEvent>) {
-        // Outbound net events.
-        let mut net_events = vec![];
-
         // Request from the server any chunks that may now be onscreen (Should client be the one to ask this?).
-        super::functions::request_chunks_from_server(self.view, &mut self.chunks, &mut net_events);
+        super::functions::request_chunks_from_server(
+            self.view,
+            &mut self.chunks,
+            &mut self.outbound,
+        );
 
         // Clone the visible tiles.
         let (tiles_x, tiles_y, foreground_tiles) =
@@ -242,6 +254,6 @@ impl GameUpdate {
         });
 
         // Return.
-        (frame, net_events.into_iter())
+        (frame, std::mem::take(&mut self.outbound))
     }
 }

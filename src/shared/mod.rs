@@ -13,5 +13,6 @@ pub const OPAQUE_FADE: u8 = TRANSPARENT_FADE * 3; // Fade of solid blocks.
 pub const MAX_LIGHT_DISTANCE: u8 = MAX_BRIGHTNESS / MIN_FADE; // The furthest a light source can reach (in tiles).
 
 // Chunk:
-pub const CHUNK_SIZE: usize = 8; // Chunk size (in tiles).
-pub const CHUNK_LOAD_BUFFER_SIZE: usize = MAX_LIGHT_DISTANCE as _; // (in tiles).
+pub const CHUNK_SIZE: usize = 8; // Chunk size (in tiles) (must be power of two).
+pub const CHUNK_SIZE_LOG2: usize = 3; // Round will probably break this sometimes (?)
+pub const CHUNK_LOAD_BUFFER_SIZE: usize = MAX_LIGHT_DISTANCE as usize; // (in tiles).

@@ -9,11 +9,14 @@ pub enum NetEvent {
     Disconnect,
     Close,
 
-    //
+    // To server
     RequestChunk(u16, u16),
+    BreakForeground(u16, u16),
+    BreakBackground(u16, u16),
 
     // To client
-    UpdateChunk(u16, u16, Box<[Tile]>),
+    UpdateForegroundChunk(u16, u16, Box<[Tile]>),
+    UpdateBackgroundChunk(u16, u16, Box<[Tile]>),
 
     // chat
     ChatMessage(String),
