@@ -14,10 +14,10 @@ extern crate ezgl;
 //mod array2d;
 mod array2d;
 mod client;
+mod game;
 mod io;
 mod net;
 mod server;
-mod shared;
 mod time;
 
 use glutin::{

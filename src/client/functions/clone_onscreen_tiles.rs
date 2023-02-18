@@ -1,4 +1,4 @@
-pub use crate::shared::tile::Tile;
+pub use crate::game::tile::Tile;
 pub use array2d::{Array2D, FastArray2D};
 
 pub fn clone_onscreen_tiles(

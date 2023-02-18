@@ -1,4 +1,12 @@
-use std::ops::{Index, Range};
+use std::borrow::Borrow;
+use std::ops::{Index, IndexMut, Range};
+
+pub trait Index2d<T>: Index<T> {
+    fn size(&self) -> (T, T);
+    fn stride(&self) -> T;
+}
+
+pub trait Index2dMut<T>: Index2d<T> + IndexMut<T> {}
 
 #[inline(always)]
 pub fn for_each_sub_wrapping(
@@ -67,27 +75,111 @@ pub struct Array2D<T> {
     data: Box<[T]>,
 }
 
-impl<T: Copy + std::fmt::Debug> Array2D<T> {
-    pub fn from_value(width: usize, height: usize, t: T) -> Self {
-        Self {
-            width,
-            height,
-            data: vec![t; width * height].into_boxed_slice(),
-        }
+impl<T> Index<usize> for Array2D<T> {
+    type Output = T;
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.data[index]
+    }
+}
+
+impl<T> IndexMut<usize> for Array2D<T> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.data[index]
+    }
+}
+
+impl<T> Index<usize> for &Array2D<T> {
+    type Output = T;
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.data[index]
+    }
+}
+
+impl<T> Index<usize> for &mut Array2D<T> {
+    type Output = T;
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.data[index]
+    }
+}
+
+impl<T> IndexMut<usize> for &mut Array2D<T> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.data[index]
+    }
+}
+
+impl<T> Index2d<usize> for Array2D<T> {
+    fn size(&self) -> (usize, usize) {
+        (self.width, self.height)
     }
 
-    pub fn from_closure(width: usize, height: usize, f: impl Fn(usize, usize) -> T) -> Self {
-        let mut arr = Vec::with_capacity(width * height);
-        for y in 0..height {
-            for x in 0..width {
-                arr.push(f(x, y));
+    fn stride(&self) -> usize {
+        self.width
+    }
+}
+
+impl<T> Index2dMut<usize> for Array2D<T> {}
+
+impl<T> Index2d<usize> for &Array2D<T> {
+    fn size(&self) -> (usize, usize) {
+        (self.width, self.height)
+    }
+
+    fn stride(&self) -> usize {
+        self.width
+    }
+}
+
+impl<T> Index2d<usize> for &mut Array2D<T> {
+    fn size(&self) -> (usize, usize) {
+        (self.width, self.height)
+    }
+
+    fn stride(&self) -> usize {
+        self.width
+    }
+}
+
+impl<T> Index2dMut<usize> for &mut Array2D<T> {}
+
+impl<T: Copy> Array2D<T> {
+    pub fn from_value(width: usize, height: usize, t: T) -> Self {
+        let data = {
+            let size = width * height;
+            let mut vec = Vec::with_capacity(size);
+            unsafe { vec.set_len(size) }
+            for i in 0..size {
+                std::mem::forget(std::mem::replace(&mut vec[i], t));
             }
-        }
+            vec.into_boxed_slice()
+        };
 
         Self {
             width,
             height,
-            data: arr.into_boxed_slice(),
+            data,
+        }
+    }
+}
+
+impl<T> Array2D<T> {
+    pub fn from_closure(width: usize, height: usize, f: impl Fn(usize, usize) -> T) -> Self {
+        let data = {
+            let size = width * height;
+            let mut vec = Vec::with_capacity(size);
+            unsafe { vec.set_len(size) }
+            for y in 0..height {
+                for x in 0..width {
+                    std::mem::forget(std::mem::replace(&mut vec[x + y * width], f(x, y)));
+                }
+            }
+            vec.into_boxed_slice()
+        };
+
+        Self {
+            width,
+            height,
+            data,
         }
     }
 
@@ -112,10 +204,16 @@ impl<T: Copy + std::fmt::Debug> Array2D<T> {
     }
 
     pub fn get(&self, x: usize, y: usize) -> Option<&T> {
+        if x > self.width {
+            return None;
+        }
         self.data.get(x + y * self.width)
     }
 
     pub fn get_mut(&mut self, x: usize, y: usize) -> Option<&mut T> {
+        if x >= self.width {
+            return None;
+        }
         self.data.get_mut(x + y * self.width)
     }
 
@@ -132,38 +230,21 @@ impl<T: Copy + std::fmt::Debug> Array2D<T> {
         xr.start < width && yr.start < height && xr.end <= width && yr.end <= height
     }
 
-    pub fn clone_sub(&self, xr: Range<usize>, yr: Range<usize>) -> Result<Array2D<T>, Array2DErr> {
-        if !self.inbounds(xr.clone(), yr.clone()) {
-            return Err(Array2DErr::OutOfBounds);
-        }
-
-        return Ok(self.clone_sub_wrapping(xr, yr));
-    }
-
-    pub fn clone_sub_wrapping(&self, xr: Range<usize>, yr: Range<usize>) -> Array2D<T> {
-        let width = xr.end - xr.start;
-        let height = yr.end - yr.start;
-        let mut arr = Vec::with_capacity(width * height);
-        self.for_each_sub_wrapping(xr, yr, |_, _, t| arr.push(*t));
-
-        return Self {
-            width,
-            height,
-            data: arr.into_boxed_slice(),
-        };
-    }
-
     pub fn splice_wrapping(&mut self, xr: Range<usize>, yr: Range<usize>, data: Box<[T]>) {
-        let mut i = 0;
+        let mut i = data.into_vec().into_iter();
         self.for_each_sub_wrapping_mut(xr, yr, |_, _, t| {
-            *t = data[i];
-            i += 1;
+            *t = i.next().unwrap();
         });
     }
 
     pub fn for_each(&self, mut f: impl FnMut(usize, usize, &T)) {
         let (w, h) = self.size();
         self.for_each_sub_wrapping(0..w, 0..h, |x, y, t| f(x, y, t));
+    }
+
+    pub fn for_each_mut(&mut self, mut f: impl FnMut(usize, usize, &mut T)) {
+        let (w, h) = self.size();
+        self.for_each_sub_wrapping_mut(0..w, 0..h, |x, y, t| f(x, y, t));
     }
 
     pub fn for_each_sub_wrapping(
@@ -188,6 +269,29 @@ impl<T: Copy + std::fmt::Debug> Array2D<T> {
         for_each_sub_wrapping(w, h, xr, yr, |x, y, index| {
             f(x, y, &mut self.data[index]);
         });
+    }
+}
+
+impl<T: Clone> Array2D<T> {
+    pub fn clone_sub(&self, xr: Range<usize>, yr: Range<usize>) -> Result<Array2D<T>, Array2DErr> {
+        if !self.inbounds(xr.clone(), yr.clone()) {
+            return Err(Array2DErr::OutOfBounds);
+        }
+
+        return Ok(self.clone_sub_wrapping(xr, yr));
+    }
+
+    pub fn clone_sub_wrapping(&self, xr: Range<usize>, yr: Range<usize>) -> Array2D<T> {
+        let width = xr.end - xr.start;
+        let height = yr.end - yr.start;
+        let mut arr = Vec::with_capacity(width * height);
+        self.for_each_sub_wrapping(xr, yr, |_, _, t| arr.push(t.clone()));
+
+        return Self {
+            width,
+            height,
+            data: arr.into_boxed_slice(),
+        };
     }
 }
 

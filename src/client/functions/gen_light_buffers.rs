@@ -1,4 +1,4 @@
-use crate::shared::*;
+use crate::game::constants::*;
 use array2d::Array2D;
 use ezgl::{gl, Buffer, Texture2D};
 
@@ -38,10 +38,7 @@ pub fn gen_light_buffers(
     let mut rgba: Vec<u8> = Vec::with_capacity(4 * w * h);
     values.for_each(|_x, _y, v| {
         //let a = (256. - 0.284 * (*v as f32 - 30.).powi(2)) as u8;
-        let mut a = 0;
-        if *v == MIN_BRIGHTNESS {
-            a = 255;
-        }
+        let a = 255 - ((255 * *v as usize) / MAX_BRIGHTNESS as usize) as u8;
         //let a = (256. - 256. * (0.85f32).powi((*v / 2) as _)) as u8;
         //let a = if *v == 0 { 100 } else { 200 };
         rgba.extend_from_slice(&[0, 0, 0, a]);

@@ -1,5 +1,5 @@
 use crate::array2d::Array2D;
-use crate::shared::tile::Tile;
+use crate::game::tile::Tile;
 
 pub struct GameFrame {
     // View data.

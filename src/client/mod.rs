@@ -13,8 +13,8 @@ use self::game_frame::*;
 use self::game_render::*;
 use self::game_update::*;
 use self::input_event::*;
+use crate::game::net_event::NetEvent;
 use crate::net::*;
-use crate::shared::net_event::NetEvent;
 use crate::time::*;
 
 pub fn time<T>(t: &mut u64, mut f: impl FnMut() -> T) -> T {

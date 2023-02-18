@@ -1,10 +1,10 @@
 use crate::array2d::*;
-use crate::shared::*;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
-use crate::shared::net_event::*;
-use crate::shared::tile::*;
+use crate::game::constants::*;
+use crate::game::net_event::*;
+use crate::game::tile::*;
 
 pub struct GameUpdate {
     kill: bool,

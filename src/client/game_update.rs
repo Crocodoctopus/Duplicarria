@@ -1,10 +1,11 @@
-use array2d::FastArray2D;
+use array2d::{Array2D, FastArray2D};
 
 use super::game_frame::*;
 use super::input_event::*;
-use crate::shared::net_event::*;
-use crate::shared::tile::*;
-use crate::shared::*;
+use crate::game::constants::*;
+use crate::game::functions::*;
+use crate::game::net_event::*;
+use crate::game::tile::*;
 
 pub struct GameUpdate {
     // Misc:
@@ -22,7 +23,7 @@ pub struct GameUpdate {
     right_queue: u8,
 
     // Client view:
-    view: (f32, f32, f32, f32), // x, y, w, h
+    view: (f32, f32, f32, f32),
 
     // Network:
     outbound: Vec<NetEvent>,
@@ -31,6 +32,10 @@ pub struct GameUpdate {
     // Tiles:
     foreground_tiles: FastArray2D<Tile>,
     background_tiles: FastArray2D<Tile>,
+
+    // Lighting:
+    light_map: Array2D<u8>,
+    fade_map: Array2D<u8>,
 }
 
 impl GameUpdate {
@@ -67,11 +72,18 @@ impl GameUpdate {
             |_, _| Tile::None,
         );
 
-        println!(
-            "Chunks: {:?}, Tiles: {:?}",
-            chunks.size(),
-            foreground_tiles.size()
-        );
+        // Light
+        let icdiv = |n, d| (n + d - 1) / d; // ceiling idiv
+
+        // most tiles that can be seen at once
+        let max_vis_w = icdiv(view_w as usize - 1, TILE_SIZE) + 1;
+        let max_vis_h = icdiv(view_h as usize - 1, TILE_SIZE) + 1;
+        let light_map_w = max_vis_w + 2 * MAX_LIGHT_DISTANCE as usize;
+        let light_map_h = max_vis_h + 2 * MAX_LIGHT_DISTANCE as usize;
+
+        // Init light map
+        let light_map = Array2D::from_closure(light_map_w, light_map_h, |_, _| MAX_BRIGHTNESS);
+        let fade_map = Array2D::from_closure(light_map_w, light_map_h, |_, _| MAX_FADE);
 
         Self {
             timer: 0,
@@ -93,6 +105,9 @@ impl GameUpdate {
 
             foreground_tiles,
             background_tiles,
+
+            light_map,
+            fade_map,
         }
     }
 
@@ -209,6 +224,71 @@ impl GameUpdate {
         if self.view.1 < 16. {
             self.view.1 = 16.;
         }
+
+        // Record some view stuff
+        let ifdiv = |n, d| n / d; // floor idiv
+        let icdiv = |n, d| ifdiv(n + d - 1, d); // ceiling idiv
+
+        let camx1 =
+            ifdiv(self.view.0 as usize, TILE_SIZE).saturating_sub(MAX_LIGHT_DISTANCE as usize);
+        let camx2 =
+            icdiv((self.view.0 + self.view.2) as usize, TILE_SIZE) + MAX_LIGHT_DISTANCE as usize;
+        let camy1 =
+            ifdiv(self.view.1 as usize, TILE_SIZE).saturating_sub(MAX_LIGHT_DISTANCE as usize);
+        let camy2 =
+            icdiv((self.view.1 + self.view.3) as usize, TILE_SIZE) + MAX_LIGHT_DISTANCE as usize;
+
+        let lmx =
+            ifdiv(self.view.0 as usize, TILE_SIZE).saturating_sub(MAX_LIGHT_DISTANCE as usize);
+        let lmy =
+            ifdiv(self.view.1 as usize, TILE_SIZE).saturating_sub(MAX_LIGHT_DISTANCE as usize);
+
+        // Wipe light_map and fade_map
+        let (w, h) = self.light_map.size();
+        self.light_map
+            .for_each_sub_wrapping_mut(1..w - 1, 1..h - 1, |_, _, t| *t = MIN_BRIGHTNESS);
+        self.fade_map
+            .for_each_sub_wrapping_mut(0..w, 0..h, |_, _, t| *t = MAX_FADE);
+
+        let xr = camx1 - lmx + 1..camx2 - lmx;
+        let yr = camy1 - lmy + 1..camy2 - lmy;
+
+        // Set up light_map and fade_map from tile data
+        let mut light_queue = vec![];
+        let (tw, th) = self.foreground_tiles.size();
+        let m = lmy * w - lmx;
+        crate::array2d::for_each_sub_wrapping(
+            tw,
+            th,
+            camx1 + 1..camx2 - 1,
+            camy1 + 1..camy2 - 1,
+            |x, y, index| {
+                let tile_index = index;
+                let light_index = x + y * w - m;
+
+                // get tile at this (x, y)
+                let fg_tile = self.foreground_tiles[tile_index];
+                let bg_tile = self.background_tiles[tile_index];
+
+                match (fg_tile, bg_tile) {
+                    // For (air, air), update the light map and push a light probe
+                    (Tile::None, Tile::None) => {
+                        self.light_map[light_index] = MAX_BRIGHTNESS;
+                        self.fade_map[light_index] = MIN_FADE;
+                        light_queue.push(light_index);
+                    }
+                    // For (air, anything), make transparent fade
+                    (Tile::None, _) => self.fade_map[light_index] = TRANSPARENT_FADE,
+                    // Anything else, make solid fade
+                    (_, _) => self.fade_map[light_index] = OPAQUE_FADE,
+                }
+            },
+        );
+
+        // Add misc light sources
+
+        // propogate light map
+        propogate_light_map_unbounded(&mut self.light_map, &self.fade_map, light_queue);
     }
 
     pub fn postframe(
@@ -228,13 +308,22 @@ impl GameUpdate {
         let (_, _, background_tiles) =
             super::functions::clone_onscreen_tiles(self.view, &self.background_tiles);
 
-        // Generate light map
-        let (light_x, light_y, light_map) = super::functions::create_light_map(
-            self.view,
-            &self.foreground_tiles,
-            &self.background_tiles,
-            &mut self.timer,
-        );
+        // Clone the innermost square of the light map
+        // Record some view stuff
+        let ifdiv = |n, d| n / d; // floor idiv
+        let icdiv = |n, d| ifdiv(n + d - 1, d); // ceiling idiv
+        let camx1 = ifdiv(self.view.0 as usize, TILE_SIZE);
+        let camx2 = icdiv((self.view.0 + self.view.2) as usize, TILE_SIZE);
+        let camy1 = ifdiv(self.view.1 as usize, TILE_SIZE);
+        let camy2 = icdiv((self.view.1 + self.view.3) as usize, TILE_SIZE);
+        let lmx =
+            ifdiv(self.view.0 as usize, TILE_SIZE).saturating_sub(MAX_LIGHT_DISTANCE as usize);
+        let lmy =
+            ifdiv(self.view.1 as usize, TILE_SIZE).saturating_sub(MAX_LIGHT_DISTANCE as usize);
+        let light_map = self
+            .light_map
+            .clone_sub(camx1 - lmx..camx2 - lmx, camy1 - lmy..camy2 - lmy)
+            .unwrap();
 
         // Construct frame.
         let frame = (!self.exit).then(|| GameFrame {
@@ -248,8 +337,8 @@ impl GameUpdate {
             foreground_tiles,
             background_tiles,
 
-            light_x,
-            light_y,
+            light_x: camx1, // TEMP
+            light_y: camy1, // TEMP
             light_map,
         });
 

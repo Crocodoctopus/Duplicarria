@@ -1,4 +1,4 @@
-use crate::shared::tile::*;
+use crate::game::tile::*;
 use array2d::Array2D;
 use ezgl::{gl::ARRAY_BUFFER, Buffer};
 
