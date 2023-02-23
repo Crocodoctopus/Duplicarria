@@ -2,8 +2,7 @@ use crate::array2d::*;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
-use crate::game::constants::*;
-use crate::game::net_event::*;
+use crate::game::net::*;
 use crate::game::tile::*;
 
 pub struct GameUpdate {
@@ -14,6 +13,8 @@ pub struct GameUpdate {
     //
     foreground_tiles: Array2D<Tile>,
     background_tiles: Array2D<Tile>,
+    //
+    //light_map: Array2D<u8>,
 }
 
 impl GameUpdate {
@@ -29,6 +30,8 @@ impl GameUpdate {
             }
             return Tile::Stone;
         });
+
+        // Create light map
 
         Self {
             kill: false,

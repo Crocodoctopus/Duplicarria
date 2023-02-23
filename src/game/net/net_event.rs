@@ -1,4 +1,4 @@
-use super::tile::*;
+use game::tile::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum NetEvent {

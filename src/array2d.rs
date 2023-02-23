@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::ops::{Index, IndexMut, Range};
 
 pub trait Index2d<T>: Index<T> {

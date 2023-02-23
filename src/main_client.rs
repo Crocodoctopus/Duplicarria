@@ -14,6 +14,7 @@ extern crate ezgl;
 //mod array2d;
 mod array2d;
 mod client;
+mod common;
 mod game;
 mod io;
 mod net;

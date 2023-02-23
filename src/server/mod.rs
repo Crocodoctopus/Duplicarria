@@ -45,7 +45,7 @@ pub fn server_update_thread(socket: UdpSocket) {
         }
 
         // Run postframe.
-        use crate::game::net_event::NetEvent;
+        use crate::game::net::NetEvent;
         let send_to_fn = |addr, net_events: Vec<NetEvent>| send_to(&socket, addr, net_events);
         if game_update.postframe(timestamp, send_to_fn) == true {
             break;

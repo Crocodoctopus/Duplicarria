@@ -13,7 +13,7 @@ use self::game_frame::*;
 use self::game_render::*;
 use self::game_update::*;
 use self::input_event::*;
-use crate::game::net_event::NetEvent;
+use crate::game::net::*;
 use crate::net::*;
 use crate::time::*;
 

@@ -1,4 +1,4 @@
-use crate::game::constants::*;
+use crate::game::lighting::*;
 use array2d::Array2D;
 use ezgl::{gl, Buffer, Texture2D};
 

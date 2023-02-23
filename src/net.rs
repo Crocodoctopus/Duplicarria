@@ -1,6 +1,6 @@
 use std::net::{SocketAddr, UdpSocket};
 
-use crate::game::net_event::*;
+use crate::game::net::*;
 
 const PACKET_MAX_SIZE: usize = 576;
 

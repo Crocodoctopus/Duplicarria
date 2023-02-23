@@ -1,10 +1,12 @@
 use array2d::{Array2D, FastArray2D};
 
+use super::functions::*;
 use super::game_frame::*;
 use super::input_event::*;
-use crate::game::constants::*;
-use crate::game::functions::*;
-use crate::game::net_event::*;
+use crate::common::*;
+
+use crate::game::lighting::*;
+use crate::game::net::*;
 use crate::game::tile::*;
 
 pub struct GameUpdate {
@@ -13,8 +15,8 @@ pub struct GameUpdate {
     exit: bool,
 
     // Input:
-    cursor_x: f32,
-    cursor_y: f32,
+    cursor_x: usize,
+    cursor_y: usize,
     cursor_left_queue: u8,
     cursor_right_queue: u8,
     up_queue: u8,
@@ -23,7 +25,8 @@ pub struct GameUpdate {
     right_queue: u8,
 
     // Client view:
-    view: (f32, f32, f32, f32),
+    view_pos: (usize, usize),
+    view_size: (usize, usize),
 
     // Network:
     outbound: Vec<NetEvent>,
@@ -40,13 +43,16 @@ pub struct GameUpdate {
 
 impl GameUpdate {
     pub fn new(view_w: f32, view_h: f32) -> Self {
+        let view_w = view_w as usize;
+        let view_h = view_h as usize;
+
         //
-        let chunk_load_buffer_size_px = (CHUNK_LOAD_BUFFER_SIZE * TILE_SIZE) as f32;
-        let chunk_size_px = (TILE_SIZE * CHUNK_SIZE) as f32;
+        let chunk_load_buffer_size_px = CHUNK_LOAD_BUFFER_SIZE * TILE_SIZE;
+        let chunk_size_px = TILE_SIZE * CHUNK_SIZE;
 
         // Get number of chunks that will fit on screen.
-        let chunks_v = ((view_w + 2. * chunk_load_buffer_size_px) / chunk_size_px).ceil() as usize;
-        let chunks_h = ((view_h + 2. * chunk_load_buffer_size_px) / chunk_size_px).ceil() as usize;
+        let chunks_v = icdiv(view_w + 2 * chunk_load_buffer_size_px, chunk_size_px);
+        let chunks_h = icdiv(view_h + 2 * chunk_load_buffer_size_px, chunk_size_px);
 
         // Get smallest base2 that can fit chunks_v/chunks_h.
         let max_visible_chunks_v_base2 = (chunks_v as f32).log2().ceil() as usize;
@@ -73,13 +79,11 @@ impl GameUpdate {
         );
 
         // Light
-        let icdiv = |n, d| (n + d - 1) / d; // ceiling idiv
-
         // most tiles that can be seen at once
-        let max_vis_w = icdiv(view_w as usize - 1, TILE_SIZE) + 1;
-        let max_vis_h = icdiv(view_h as usize - 1, TILE_SIZE) + 1;
-        let light_map_w = max_vis_w + 2 * MAX_LIGHT_DISTANCE as usize;
-        let light_map_h = max_vis_h + 2 * MAX_LIGHT_DISTANCE as usize;
+        let max_vis_w = icdiv(view_w - 1, TILE_SIZE) + 1;
+        let max_vis_h = icdiv(view_h - 1, TILE_SIZE) + 1;
+        let light_map_w = max_vis_w + 2 * MAX_LIGHT_DISTANCE;
+        let light_map_h = max_vis_h + 2 * MAX_LIGHT_DISTANCE;
 
         // Init light map
         let light_map = Array2D::from_closure(light_map_w, light_map_h, |_, _| MAX_BRIGHTNESS);
@@ -89,8 +93,8 @@ impl GameUpdate {
             timer: 0,
             exit: false,
 
-            cursor_x: 0.,
-            cursor_y: 0.,
+            cursor_x: 0,
+            cursor_y: 0,
             cursor_left_queue: 0,
             cursor_right_queue: 0,
             up_queue: 0,
@@ -98,7 +102,8 @@ impl GameUpdate {
             left_queue: 0,
             right_queue: 0,
 
-            view: (32., 32., view_w, view_h),
+            view_pos: (32, 32),
+            view_size: (view_w, view_h),
 
             outbound: Vec::new(),
             chunks,
@@ -165,7 +170,7 @@ impl GameUpdate {
                 InputEvent::KeyEvent(KeyState::Up, InputKey::S) => self.down_queue &= !1,
                 InputEvent::KeyEvent(KeyState::Up, InputKey::D) => self.right_queue &= !1,
 
-                InputEvent::CursorMove(x, y) => (self.cursor_x, self.cursor_y) = (x, y),
+                InputEvent::CursorMove(x, y) => (self.cursor_x, self.cursor_y) = (x as _, y as _),
                 InputEvent::KeyEvent(KeyState::Down, InputKey::LeftClick) => {
                     self.cursor_left_queue |= 1
                 }
@@ -184,8 +189,8 @@ impl GameUpdate {
 
         // On left click
         if self.cursor_left_queue & 0b1 == 1 && self.cursor_left_queue & 0b10 == 0 {
-            let x = ((self.view.0 + self.cursor_x) / 16.) as usize;
-            let y = ((self.view.1 + self.cursor_y) / 16.) as usize;
+            let x = (self.view_pos.0 + self.cursor_x) / 16;
+            let y = (self.view_pos.1 + self.cursor_y) / 16;
             *self.foreground_tiles.get_wrapping_mut(x, y) = Tile::None;
             self.outbound
                 .push(NetEvent::BreakForeground(x as _, y as _));
@@ -193,8 +198,8 @@ impl GameUpdate {
 
         // On right click
         if self.cursor_right_queue & 0b1 == 1 && self.cursor_right_queue & 0b10 == 0 {
-            let x = ((self.view.0 + self.cursor_x) / 16.) as usize;
-            let y = ((self.view.1 + self.cursor_y) / 16.) as usize;
+            let x = (self.view_pos.0 + self.cursor_x) / 16;
+            let y = (self.view_pos.1 + self.cursor_y) / 16;
             *self.background_tiles.get_wrapping_mut(x, y) = Tile::None;
             self.outbound
                 .push(NetEvent::BreakBackground(x as _, y as _));
@@ -202,124 +207,71 @@ impl GameUpdate {
     }
 
     pub fn step(&mut self, _timestamp: u64, frametime: u64) {
-        let dt = frametime as f32 / 1_000_000.;
+        let _dt = frametime as f32 / 1_000_000.;
 
+        // Temporary camera movement
         if self.up_queue & 1 > 0 {
-            self.view.1 -= 160. * dt;
+            self.view_pos.1 -= 3;
         }
         if self.down_queue & 1 > 0 {
-            self.view.1 += 160. * dt;
+            self.view_pos.1 += 3;
         }
         if self.left_queue & 1 > 0 {
-            self.view.0 -= 160. * dt;
+            self.view_pos.0 -= 3;
         }
         if self.right_queue & 1 > 0 {
-            self.view.0 += 160. * dt;
+            self.view_pos.0 += 3;
         }
 
         // Ensure the view is always inbounds.
-        if self.view.0 < 16. {
-            self.view.0 = 16.;
-        }
-        if self.view.1 < 16. {
-            self.view.1 = 16.;
-        }
+        self.view_pos.0 = self.view_pos.0.max(16);
+        self.view_pos.1 = self.view_pos.1.max(16);
 
-        // Record some view stuff
-        let ifdiv = |n, d| n / d; // floor idiv
-        let icdiv = |n, d| ifdiv(n + d - 1, d); // ceiling idiv
-
-        let camx1 =
-            ifdiv(self.view.0 as usize, TILE_SIZE).saturating_sub(MAX_LIGHT_DISTANCE as usize);
-        let camx2 =
-            icdiv((self.view.0 + self.view.2) as usize, TILE_SIZE) + MAX_LIGHT_DISTANCE as usize;
-        let camy1 =
-            ifdiv(self.view.1 as usize, TILE_SIZE).saturating_sub(MAX_LIGHT_DISTANCE as usize);
-        let camy2 =
-            icdiv((self.view.1 + self.view.3) as usize, TILE_SIZE) + MAX_LIGHT_DISTANCE as usize;
-
-        let lmx =
-            ifdiv(self.view.0 as usize, TILE_SIZE).saturating_sub(MAX_LIGHT_DISTANCE as usize);
-        let lmy =
-            ifdiv(self.view.1 as usize, TILE_SIZE).saturating_sub(MAX_LIGHT_DISTANCE as usize);
-
-        // Wipe light_map and fade_map
-        let (w, h) = self.light_map.size();
-        self.light_map
-            .for_each_sub_wrapping_mut(1..w - 1, 1..h - 1, |_, _, t| *t = MIN_BRIGHTNESS);
-        self.fade_map
-            .for_each_sub_wrapping_mut(0..w, 0..h, |_, _, t| *t = MAX_FADE);
-
-        let xr = camx1 - lmx + 1..camx2 - lmx;
-        let yr = camy1 - lmy + 1..camy2 - lmy;
-
-        // Set up light_map and fade_map from tile data
-        let mut light_queue = vec![];
-        let (tw, th) = self.foreground_tiles.size();
-        let m = lmy * w - lmx;
-        crate::array2d::for_each_sub_wrapping(
-            tw,
-            th,
-            camx1 + 1..camx2 - 1,
-            camy1 + 1..camy2 - 1,
-            |x, y, index| {
-                let tile_index = index;
-                let light_index = x + y * w - m;
-
-                // get tile at this (x, y)
-                let fg_tile = self.foreground_tiles[tile_index];
-                let bg_tile = self.background_tiles[tile_index];
-
-                match (fg_tile, bg_tile) {
-                    // For (air, air), update the light map and push a light probe
-                    (Tile::None, Tile::None) => {
-                        self.light_map[light_index] = MAX_BRIGHTNESS;
-                        self.fade_map[light_index] = MIN_FADE;
-                        light_queue.push(light_index);
-                    }
-                    // For (air, anything), make transparent fade
-                    (Tile::None, _) => self.fade_map[light_index] = TRANSPARENT_FADE,
-                    // Anything else, make solid fade
-                    (_, _) => self.fade_map[light_index] = OPAQUE_FADE,
-                }
-            },
+        // Request from the server any chunks that may now be onscreen (Should client be the one to ask this?).
+        request_chunks_from_server(
+            self.view_pos,
+            self.view_size,
+            &mut self.chunks,
+            &mut self.outbound,
         );
 
-        // Add misc light sources
-
-        // propogate light map
-        propogate_light_map_unbounded(&mut self.light_map, &self.fade_map, light_queue);
+        update_lighting(
+            self.view_pos,
+            self.view_size,
+            &self.foreground_tiles,
+            &self.background_tiles,
+            &mut self.light_map,
+            &mut self.fade_map,
+        );
     }
 
     pub fn postframe(
         &mut self,
         _timestamp: u64,
     ) -> (Option<GameFrame>, impl IntoIterator<Item = NetEvent>) {
-        // Request from the server any chunks that may now be onscreen (Should client be the one to ask this?).
-        super::functions::request_chunks_from_server(
-            self.view,
-            &mut self.chunks,
-            &mut self.outbound,
-        );
-
         // Clone the visible tiles.
-        let (tiles_x, tiles_y, foreground_tiles) =
-            super::functions::clone_onscreen_tiles(self.view, &self.foreground_tiles);
-        let (_, _, background_tiles) =
-            super::functions::clone_onscreen_tiles(self.view, &self.background_tiles);
+        const VISIBLE_TILE_BUFFER: usize = 4;
+        let x1 = ifdiv(self.view_pos.0 - VISIBLE_TILE_BUFFER, TILE_SIZE).saturating_sub(1);
+        let x2 = icdiv(
+            self.view_pos.0 + self.view_size.0 + VISIBLE_TILE_BUFFER,
+            TILE_SIZE,
+        ) + 1;
+        let y1 = ifdiv(self.view_pos.1 - VISIBLE_TILE_BUFFER, TILE_SIZE).saturating_sub(1);
+        let y2 = icdiv(
+            self.view_pos.1 + self.view_size.1 + VISIBLE_TILE_BUFFER,
+            TILE_SIZE,
+        ) + 1;
+        let foreground_tiles = self.foreground_tiles.clone_sub_wrapping(x1..x2, y1..y2);
+        let background_tiles = self.background_tiles.clone_sub_wrapping(x1..x2, y1..y2);
+        let (tiles_x, tiles_y) = (x1, y1);
 
         // Clone the innermost square of the light map
-        // Record some view stuff
-        let ifdiv = |n, d| n / d; // floor idiv
-        let icdiv = |n, d| ifdiv(n + d - 1, d); // ceiling idiv
-        let camx1 = ifdiv(self.view.0 as usize, TILE_SIZE);
-        let camx2 = icdiv((self.view.0 + self.view.2) as usize, TILE_SIZE);
-        let camy1 = ifdiv(self.view.1 as usize, TILE_SIZE);
-        let camy2 = icdiv((self.view.1 + self.view.3) as usize, TILE_SIZE);
-        let lmx =
-            ifdiv(self.view.0 as usize, TILE_SIZE).saturating_sub(MAX_LIGHT_DISTANCE as usize);
-        let lmy =
-            ifdiv(self.view.1 as usize, TILE_SIZE).saturating_sub(MAX_LIGHT_DISTANCE as usize);
+        let camx1 = ifdiv(self.view_pos.0, TILE_SIZE);
+        let camx2 = icdiv(self.view_pos.0 + self.view_size.0, TILE_SIZE);
+        let camy1 = ifdiv(self.view_pos.1, TILE_SIZE);
+        let camy2 = icdiv(self.view_pos.1 + self.view_size.1, TILE_SIZE);
+        let lmx = ifdiv(self.view_pos.0, TILE_SIZE).saturating_sub(MAX_LIGHT_DISTANCE);
+        let lmy = ifdiv(self.view_pos.1, TILE_SIZE).saturating_sub(MAX_LIGHT_DISTANCE);
         let light_map = self
             .light_map
             .clone_sub(camx1 - lmx..camx2 - lmx, camy1 - lmy..camy2 - lmy)
@@ -327,10 +279,10 @@ impl GameUpdate {
 
         // Construct frame.
         let frame = (!self.exit).then(|| GameFrame {
-            view_x: self.view.0 as usize,
-            view_y: self.view.1 as usize,
-            view_w: self.view.2 as usize,
-            view_h: self.view.3 as usize,
+            view_x: self.view_pos.0,
+            view_y: self.view_pos.1,
+            view_w: self.view_size.0,
+            view_h: self.view_size.1,
 
             tiles_x,
             tiles_y,
