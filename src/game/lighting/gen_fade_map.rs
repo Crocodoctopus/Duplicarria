@@ -3,22 +3,21 @@ use crate::common::*;
 use crate::game::lighting::*;
 use crate::game::tile::*;
 
-pub fn update_lighting(
+#[inline(always)]
+pub fn gen_fade_map(
     (view_x, view_y): (usize, usize),
-    (_view_w, _view_h): (usize, usize),
     foreground_tiles: &FastArray2D<Tile>,
     background_tiles: &FastArray2D<Tile>,
-    mut light_map: &mut Array2D<u8>,
     mut fade_map: &mut Array2D<u8>,
-) {
+    mut light_map: &mut Array2D<u8>,
+) -> impl Iterator<Item = usize> {
     let (w, h) = light_map.size();
-    light_map.for_each_sub_wrapping_mut(1..w - 1, 1..h - 1, |_, _, t| *t = MIN_BRIGHTNESS);
 
     // Record some view stuff
     let x = ifdiv(view_x, TILE_SIZE).saturating_sub(MAX_LIGHT_DISTANCE);
     let y = ifdiv(view_y, TILE_SIZE).saturating_sub(MAX_LIGHT_DISTANCE);
 
-    // Set up light_map and fade_map from tile data
+    // Set up the fade_map from tile data
     let mut light_queue = Vec::with_capacity(1024);
     let (tw, th) = foreground_tiles.size();
     let m = x + y * w;
@@ -50,6 +49,5 @@ pub fn update_lighting(
         },
     );
 
-    // Propogate light map
-    propogate_light_map_unbounded(light_map, fade_map, light_queue);
+    light_queue.into_iter()
 }

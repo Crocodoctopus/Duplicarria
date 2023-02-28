@@ -20,6 +20,6 @@ name = "server"
 path = "src/main_server.rs"
 
 [profile.release]
-#lto = true
-#codegen-units = 1
+lto = "thin"
+codegen-units = 2
 panic = "abort"

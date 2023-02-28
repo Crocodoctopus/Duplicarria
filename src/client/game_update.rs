@@ -206,6 +206,7 @@ impl GameUpdate {
         }
     }
 
+    #[inline(always)]
     pub fn step(&mut self, _timestamp: u64, frametime: u64) {
         let _dt = frametime as f32 / 1_000_000.;
 
@@ -235,14 +236,21 @@ impl GameUpdate {
             &mut self.outbound,
         );
 
-        update_lighting(
+        // Clear light map.
+        let (w, h) = self.light_map.size();
+        self.light_map.for_each_sub_wrapping_mut(1..w - 1, 1..h - 1, |_, _, t| *t = MIN_BRIGHTNESS);
+
+        // Generate a fade map
+        let lights = gen_fade_map(
             self.view_pos,
-            self.view_size,
             &self.foreground_tiles,
             &self.background_tiles,
-            &mut self.light_map,
             &mut self.fade_map,
+            &mut self.light_map,
         );
+
+        // Generate final light map
+        propogate_light_map_unbounded(&mut self.light_map, &self.fade_map, lights);
     }
 
     pub fn postframe(
