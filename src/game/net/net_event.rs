@@ -4,7 +4,7 @@ use game::tile::*;
 pub enum NetEvent {
     // connection
     Connect,
-    Accept,
+    Accept(u16, u16), // world w/h (in chunks)
     Ping,
     Disconnect,
     Close,

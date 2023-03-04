@@ -13,6 +13,7 @@ pub struct GameUpdate {
     // Misc:
     timer: usize,
     exit: bool,
+    connected: bool,
 
     // Input:
     cursor_x: usize,
@@ -33,6 +34,8 @@ pub struct GameUpdate {
     chunks: FastArray2D<(u16, u16)>,
 
     // Tiles:
+    world_w: usize,
+    world_h: usize,
     foreground_tiles: FastArray2D<Tile>,
     background_tiles: FastArray2D<Tile>,
 
@@ -92,6 +95,7 @@ impl GameUpdate {
         Self {
             timer: 0,
             exit: false,
+            connected: false,
 
             cursor_x: 0,
             cursor_y: 0,
@@ -102,12 +106,14 @@ impl GameUpdate {
             left_queue: 0,
             right_queue: 0,
 
-            view_pos: (32, 32),
+            view_pos: (9999999, 32),
             view_size: (view_w, view_h),
 
             outbound: Vec::new(),
             chunks,
 
+            world_w: 0,
+            world_h: 0,
             foreground_tiles,
             background_tiles,
 
@@ -125,7 +131,13 @@ impl GameUpdate {
         // Net loop.
         for net in net_events {
             match net {
-                NetEvent::Accept => {}
+                NetEvent::Accept(world_w, world_h) => {
+                    self.connected = true;
+                    println!("{} {}", world_w, world_h);
+                    self.world_w = world_w as usize;
+                    self.world_h = world_h as usize;
+                }
+
                 NetEvent::UpdateForegroundChunk(x, y, tiles) => {
                     // Verify the incoming chunk exists in the world still, update tiles.
                     if &(x, y) == self.chunks.get_wrapping(x as usize, y as usize) {
@@ -210,6 +222,11 @@ impl GameUpdate {
     pub fn step(&mut self, _timestamp: u64, frametime: u64) {
         let _dt = frametime as f32 / 1_000_000.;
 
+        if !self.connected {
+            println!("ret");
+            return;
+        }
+
         // Temporary camera movement
         if self.up_queue & 1 > 0 {
             self.view_pos.1 -= 3;
@@ -225,8 +242,12 @@ impl GameUpdate {
         }
 
         // Ensure the view is always inbounds.
-        self.view_pos.0 = self.view_pos.0.max(16);
-        self.view_pos.1 = self.view_pos.1.max(16);
+        self.view_pos.0 = ((self.view_pos.0 + self.view_size.0).min(self.world_w * 8 - 16)
+            - self.view_size.0)
+            .max(16);
+        self.view_pos.1 = ((self.view_pos.1 + self.view_size.1).min(self.world_h * 8 - 16)
+            - self.view_size.1)
+            .max(16);
 
         // Request from the server any chunks that may now be onscreen (Should client be the one to ask this?).
         request_chunks_from_server(
@@ -238,7 +259,8 @@ impl GameUpdate {
 
         // Clear light map.
         let (w, h) = self.light_map.size();
-        self.light_map.for_each_sub_wrapping_mut(1..w - 1, 1..h - 1, |_, _, t| *t = MIN_BRIGHTNESS);
+        self.light_map
+            .for_each_sub_wrapping_mut(1..w - 1, 1..h - 1, |_, _, t| *t = MIN_BRIGHTNESS);
 
         // Generate a fade map
         let lights = gen_fade_map(

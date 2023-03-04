@@ -11,6 +11,8 @@ pub struct GameUpdate {
     connections: HashMap<SocketAddr, Vec<NetEvent>>,
 
     //
+    world_w: usize,
+    world_h: usize,
     foreground_tiles: Array2D<Tile>,
     background_tiles: Array2D<Tile>,
     //
@@ -19,8 +21,12 @@ pub struct GameUpdate {
 
 impl GameUpdate {
     pub fn new() -> Self {
+        // World size.
+        let world_w = CHUNK_SIZE * 512;
+        let world_h = CHUNK_SIZE * 128;
+
         // Create 1024 * 256 chunk world.
-        let foreground_tiles = Array2D::from_closure(CHUNK_SIZE * 512, CHUNK_SIZE * 128, |x, y| {
+        let foreground_tiles = Array2D::from_closure(world_w, world_h, |x, y| {
             let h = (7.0 * ((x as f32 / 4.).sin() + 1.0) / 2.0) as usize + 15;
             if y < h {
                 return Tile::None;
@@ -38,9 +44,9 @@ impl GameUpdate {
 
             connections: HashMap::new(),
 
-            background_tiles: foreground_tiles
-                .clone_sub(0..CHUNK_SIZE * 512, 0..CHUNK_SIZE * 128)
-                .unwrap(),
+            world_w,
+            world_h,
+            background_tiles: foreground_tiles.clone_sub(0..world_w, 0..world_h).unwrap(),
             foreground_tiles,
         }
     }
@@ -65,7 +71,10 @@ impl GameUpdate {
         for (event, addr) in net_events {
             // Handle connect.
             if matches!(event, NetEvent::Connect) && !self.connections.contains_key(&addr) {
-                self.connections.insert(addr, vec![NetEvent::Accept]);
+                self.connections.insert(
+                    addr,
+                    vec![NetEvent::Accept(self.world_w as u16, self.world_h as u16)],
+                );
                 println!("[Server] {:?} has connected.", addr);
                 continue;
             }
