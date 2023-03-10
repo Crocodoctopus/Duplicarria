@@ -17,5 +17,7 @@ pub struct GameFrame {
     // Lighting layer.
     pub light_x: usize,
     pub light_y: usize,
-    pub light_map: Array2D<u8>,
+    pub light_map_r: Array2D<u8>,
+    pub light_map_g: Array2D<u8>,
+    pub light_map_b: Array2D<u8>,
 }

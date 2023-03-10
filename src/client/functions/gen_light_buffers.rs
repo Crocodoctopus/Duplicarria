@@ -9,6 +9,7 @@ pub fn gen_light_buffers(
     x: usize, // units in tiles
     y: usize, // units in tiles
     values: Array2D<u8>,
+    rgb: (u8, u8, u8),
 ) {
     let (w, h) = values.size();
 
@@ -36,12 +37,39 @@ pub fn gen_light_buffers(
 
     // Generate texture
     let mut rgba: Vec<u8> = Vec::with_capacity(4 * w * h);
-    values.for_each(|_x, _y, v| {
+    let mut color = [rgb.0, rgb.1, rgb.2, 0];
+    values.for_each(|_, _, &v| {
+        /*let h: usize = (255 * 351 / 360);
+        let s: usize = (255 * 92 / 100);
+        let v: usize = ((255 * *v as usize) / MAX_BRIGHTNESS as usize);
+
+        let region = (h / 34) & 0xFF;
+        let remainder = ((h.wrapping_sub(region * 43)).wrapping_mul(6)) & 0xFF;
+        let p = (v * (255 - s)) >> 8;
+        let q = (v * (255 - ((s * remainder) >> 8))) >> 8;
+        let t = (v * (255 - ((s * (255 - remainder)) >> 8))) >> 8;
+
+        let (r, g, b) = match region {
+            0 => (v, t, p),
+            1 => (q, v, p),
+            2 => (p, v, t),
+            3 => (p, q, v),
+            4 => (t, p, v),
+            _ => (v, p, q),
+        };
+        */
+
+        let r = 0;
+        let g = 0;
+        let b = 0;
+        let a = 255 - 255 / MAX_BRIGHTNESS * v;
+
+        rgba.extend_from_slice(&[r, g, b, a]);
+
         //let a = (256. - 0.284 * (*v as f32 - 30.).powi(2)) as u8;
-        let a = 255 - ((255 * *v as usize) / MAX_BRIGHTNESS as usize) as u8;
+        //let a = 255 - ((255 * *v as usize) / MAX_BRIGHTNESS as usize) as u8;
         //let a = (256. - 256. * (0.85f32).powi((*v / 2) as _)) as u8;
         //let a = if *v == 0 { 100 } else { 200 };
-        rgba.extend_from_slice(&[0, 0, 0, a]);
     });
     tex.load_from_pixels(w as _, h as _, gl::RGBA, &rgba)
         .unwrap();

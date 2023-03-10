@@ -9,9 +9,11 @@ pub fn gen_fade_map(
     foreground_tiles: &FastArray2D<Tile>,
     background_tiles: &FastArray2D<Tile>,
     mut fade_map: &mut Array2D<u8>,
-    mut light_map: &mut Array2D<u8>,
-) -> impl Iterator<Item = usize> {
-    let (w, h) = light_map.size();
+    mut light_map_r: &mut Array2D<u8>,
+    mut light_map_g: &mut Array2D<u8>,
+    mut light_map_b: &mut Array2D<u8>,
+) -> impl Iterator<Item = usize> + Clone {
+    let (w, h) = light_map_r.size();
 
     // Record some view stuff
     let x = ifdiv(view_x, TILE_SIZE).saturating_sub(MAX_LIGHT_DISTANCE);
@@ -37,7 +39,9 @@ pub fn gen_fade_map(
             match (fg_tile, bg_tile) {
                 // For (air, air), update the light map and push a light probe
                 (Tile::None, Tile::None) => {
-                    light_map[light_index] = MAX_BRIGHTNESS;
+                    light_map_r[light_index] = MAX_BRIGHTNESS;
+                    light_map_g[light_index] = MAX_BRIGHTNESS;
+                    light_map_b[light_index] = MAX_BRIGHTNESS;
                     fade_map[light_index] = MIN_FADE;
                     light_queue.push(light_index);
                 }

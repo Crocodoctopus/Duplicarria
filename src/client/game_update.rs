@@ -40,7 +40,9 @@ pub struct GameUpdate {
     background_tiles: FastArray2D<Tile>,
 
     // Lighting:
-    light_map: Array2D<u8>,
+    light_map_r: Array2D<u8>,
+    light_map_g: Array2D<u8>,
+    light_map_b: Array2D<u8>,
     fade_map: Array2D<u8>,
 }
 
@@ -89,7 +91,9 @@ impl GameUpdate {
         let light_map_h = max_vis_h + 2 * MAX_LIGHT_DISTANCE;
 
         // Init light map
-        let light_map = Array2D::from_closure(light_map_w, light_map_h, |_, _| MAX_BRIGHTNESS);
+        let light_map_r = Array2D::from_closure(light_map_w, light_map_h, |_, _| MAX_BRIGHTNESS);
+        let light_map_g = Array2D::from_closure(light_map_w, light_map_h, |_, _| MAX_BRIGHTNESS);
+        let light_map_b = Array2D::from_closure(light_map_w, light_map_h, |_, _| MAX_BRIGHTNESS);
         let fade_map = Array2D::from_closure(light_map_w, light_map_h, |_, _| MAX_FADE);
 
         Self {
@@ -117,7 +121,9 @@ impl GameUpdate {
             foreground_tiles,
             background_tiles,
 
-            light_map,
+            light_map_r,
+            light_map_g,
+            light_map_b,
             fade_map,
         }
     }
@@ -222,12 +228,12 @@ impl GameUpdate {
     pub fn step(&mut self, _timestamp: u64, frametime: u64) {
         let _dt = frametime as f32 / 1_000_000.;
 
+        // Skip update loop if not connected.
         if !self.connected {
-            println!("ret");
             return;
         }
 
-        // Temporary camera movement
+        // Temporary camera movement.
         if self.up_queue & 1 > 0 {
             self.view_pos.1 -= 3;
         }
@@ -258,21 +264,29 @@ impl GameUpdate {
         );
 
         // Clear light map.
-        let (w, h) = self.light_map.size();
-        self.light_map
+        let (w, h) = self.light_map_r.size();
+        self.light_map_r
+            .for_each_sub_wrapping_mut(1..w - 1, 1..h - 1, |_, _, t| *t = MIN_BRIGHTNESS);
+        self.light_map_g
+            .for_each_sub_wrapping_mut(1..w - 1, 1..h - 1, |_, _, t| *t = MIN_BRIGHTNESS);
+        self.light_map_b
             .for_each_sub_wrapping_mut(1..w - 1, 1..h - 1, |_, _, t| *t = MIN_BRIGHTNESS);
 
-        // Generate a fade map
+        // Generate a fade map.
         let lights = gen_fade_map(
             self.view_pos,
             &self.foreground_tiles,
             &self.background_tiles,
             &mut self.fade_map,
-            &mut self.light_map,
+            &mut self.light_map_r,
+            &mut self.light_map_g,
+            &mut self.light_map_b,
         );
 
-        // Generate final light map
-        propogate_light_map_unbounded(&mut self.light_map, &self.fade_map, lights);
+        // Generate final light map.
+        propogate_light_map_unbounded(&mut self.light_map_r, &self.fade_map, lights.clone());
+        propogate_light_map_unbounded(&mut self.light_map_g, &self.fade_map, lights.clone());
+        propogate_light_map_unbounded(&mut self.light_map_b, &self.fade_map, lights.clone());
     }
 
     pub fn postframe(
@@ -302,8 +316,16 @@ impl GameUpdate {
         let camy2 = icdiv(self.view_pos.1 + self.view_size.1, TILE_SIZE);
         let lmx = ifdiv(self.view_pos.0, TILE_SIZE).saturating_sub(MAX_LIGHT_DISTANCE);
         let lmy = ifdiv(self.view_pos.1, TILE_SIZE).saturating_sub(MAX_LIGHT_DISTANCE);
-        let light_map = self
-            .light_map
+        let light_map_r = self
+            .light_map_r
+            .clone_sub(camx1 - lmx..camx2 - lmx, camy1 - lmy..camy2 - lmy)
+            .unwrap();
+        let light_map_g = self
+            .light_map_g
+            .clone_sub(camx1 - lmx..camx2 - lmx, camy1 - lmy..camy2 - lmy)
+            .unwrap();
+        let light_map_b = self
+            .light_map_b
             .clone_sub(camx1 - lmx..camx2 - lmx, camy1 - lmy..camy2 - lmy)
             .unwrap();
 
@@ -321,7 +343,9 @@ impl GameUpdate {
 
             light_x: camx1, // TEMP
             light_y: camy1, // TEMP
-            light_map,
+            light_map_r,
+            light_map_g,
+            light_map_b,
         });
 
         // Return.

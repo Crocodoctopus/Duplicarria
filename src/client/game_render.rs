@@ -109,7 +109,8 @@ impl GameRender {
             &mut self.light_tex,
             game_frame.light_x,
             game_frame.light_y,
-            game_frame.light_map,
+            game_frame.light_map_r,
+            (255, 0, 0),
         );
 
         // Render light map.
