@@ -5,6 +5,7 @@ use super::game_frame::*;
 use super::input_event::*;
 use crate::common::*;
 
+use crate::game::humanoid::*;
 use crate::game::lighting::*;
 use crate::game::net::*;
 use crate::game::tile::*;
@@ -13,7 +14,6 @@ pub struct GameUpdate {
     // Misc:
     timer: usize,
     exit: bool,
-    connected: bool,
 
     // Input:
     cursor_x: usize,
@@ -32,6 +32,9 @@ pub struct GameUpdate {
     // Network:
     outbound: Vec<NetEvent>,
     chunks: FastArray2D<(u16, u16)>,
+
+    // Humanoid
+    humanoids: Vec<(usize, HumanoidState, HumanoidPhysics, HumanoidAi)>,
 
     // Tiles:
     world_w: usize,
@@ -99,7 +102,6 @@ impl GameUpdate {
         Self {
             timer: 0,
             exit: false,
-            connected: false,
 
             cursor_x: 0,
             cursor_y: 0,
@@ -110,11 +112,30 @@ impl GameUpdate {
             left_queue: 0,
             right_queue: 0,
 
-            view_pos: (9999999, 32),
+            view_pos: (0, 0),
             view_size: (view_w, view_h),
 
             outbound: Vec::new(),
             chunks,
+
+            humanoids: vec![
+                (
+                    usize::MAX,
+                    HumanoidState {
+                        run_state: HumanoidRunState::Idle,
+                        use_state: HumanoidUseState::None,
+                        direction: HumanoidDirection::Right,
+                    },
+                    HumanoidPhysics {
+                        x: 32.,
+                        y: 32.,
+                        dx: 0.,
+                        dy: 0.,
+                        grounded: false,
+                    },
+                    HumanoidAi::Player,
+                )
+            ],
 
             world_w: 0,
             world_h: 0,
@@ -138,7 +159,6 @@ impl GameUpdate {
         for net in net_events {
             match net {
                 NetEvent::Accept(world_w, world_h) => {
-                    self.connected = true;
                     println!("{} {}", world_w, world_h);
                     self.world_w = world_w as usize;
                     self.world_h = world_h as usize;
@@ -162,6 +182,24 @@ impl GameUpdate {
                             CHUNK_SIZE * y as usize..CHUNK_SIZE * (y as usize + 1),
                             tiles.clone(),
                         );
+                    }
+                }
+                NetEvent::UpdateForegroundTile(x, y, tile) => {
+                    let (x, y) = (x as usize, y as usize);
+                    let (chunk_x, chunk_y) = (x / CHUNK_SIZE, y / CHUNK_SIZE);
+                    let verify = &(chunk_x as u16, chunk_y as u16)
+                        == self.chunks.get_wrapping(chunk_x, chunk_y);
+                    if verify {
+                        *self.foreground_tiles.get_wrapping_mut(x, y) = tile;
+                    }
+                }
+                NetEvent::UpdateBackgroundTile(x, y, tile) => {
+                    let (x, y) = (x as usize, y as usize);
+                    let (chunk_x, chunk_y) = (x / CHUNK_SIZE, y / CHUNK_SIZE);
+                    let verify = &(chunk_x as u16, chunk_y as u16)
+                        == self.chunks.get_wrapping(chunk_x, chunk_y);
+                    if verify {
+                        *self.background_tiles.get_wrapping_mut(x, y) = tile;
                     }
                 }
                 _ => {}
@@ -228,11 +266,6 @@ impl GameUpdate {
     pub fn step(&mut self, _timestamp: u64, frametime: u64) {
         let _dt = frametime as f32 / 1_000_000.;
 
-        // Skip update loop if not connected.
-        if !self.connected {
-            return;
-        }
-
         // Temporary camera movement.
         if self.up_queue & 1 > 0 {
             self.view_pos.1 -= 3;
@@ -285,16 +318,16 @@ impl GameUpdate {
 
         // Generate final light map.
         propogate_light_map_unbounded(&mut self.light_map_r, &self.fade_map, lights.clone());
-        propogate_light_map_unbounded(&mut self.light_map_g, &self.fade_map, lights.clone());
-        propogate_light_map_unbounded(&mut self.light_map_b, &self.fade_map, lights.clone());
+        //propogate_light_map_unbounded(&mut self.light_map_g, &self.fade_map, lights.clone());
+        //propogate_light_map_unbounded(&mut self.light_map_b, &self.fade_map, lights.clone());
     }
 
     pub fn postframe(
         &mut self,
         _timestamp: u64,
     ) -> (Option<GameFrame>, impl IntoIterator<Item = NetEvent>) {
-        // Clone the visible tiles.
-        const VISIBLE_TILE_BUFFER: usize = 4;
+        // Clone the visible tiles
+        const VISIBLE_TILE_BUFFER: usize = 2;
         let x1 = ifdiv(self.view_pos.0 - VISIBLE_TILE_BUFFER, TILE_SIZE).saturating_sub(1);
         let x2 = icdiv(
             self.view_pos.0 + self.view_size.0 + VISIBLE_TILE_BUFFER,
@@ -329,12 +362,17 @@ impl GameUpdate {
             .clone_sub(camx1 - lmx..camx2 - lmx, camy1 - lmy..camy2 - lmy)
             .unwrap();
 
+        // Prepare player data.
+        let mut humanoid_xys: Vec<(f32, f32)> = self.humanoids.iter().map(|(_, _, physics, _)| (physics.x, physics.y)).collect();
+
         // Construct frame.
         let frame = (!self.exit).then(|| GameFrame {
             view_x: self.view_pos.0,
             view_y: self.view_pos.1,
             view_w: self.view_size.0,
             view_h: self.view_size.1,
+
+            humanoid_xys,
 
             tiles_x,
             tiles_y,

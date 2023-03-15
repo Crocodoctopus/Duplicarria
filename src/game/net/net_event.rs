@@ -15,6 +15,8 @@ pub enum NetEvent {
     BreakBackground(u16, u16),
 
     // To client
+    UpdateForegroundTile(u16, u16, Tile),
+    UpdateBackgroundTile(u16, u16, Tile),
     UpdateForegroundChunk(u16, u16, Box<[Tile]>),
     UpdateBackgroundChunk(u16, u16, Box<[Tile]>),
 

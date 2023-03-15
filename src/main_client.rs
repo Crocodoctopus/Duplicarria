@@ -18,7 +18,6 @@ mod common;
 mod game;
 mod io;
 mod net;
-mod server;
 mod time;
 
 use glutin::{

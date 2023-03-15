@@ -24,7 +24,7 @@ pub fn launch_server(port: u16) -> (u16, JoinHandle<()>) {
 
 pub fn server_update_thread(socket: UdpSocket) {
     println!("[Server] Update thread start.");
-    let frametime = 16_666; // us
+    let frametime = 100_000; // us
     let mut timestamp = get_microseconds_as_u64();
 
     // Create server state.

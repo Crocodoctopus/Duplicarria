@@ -8,6 +8,10 @@ pub struct GameRender {
     // General purpose IBO.
     ibo: ezgl::Buffer<u16>,
 
+    // Humanoid state data.
+    humanoid_xy: ezgl::Buffer<(f32, f32)>,
+    humanoid_rgb: ezgl::Buffer<(f32, f32, f32)>,
+
     // Tile state data.
     max_tiles: usize,
     tile_xyz: ezgl::Buffer<(f32, f32, f32)>,
@@ -21,7 +25,7 @@ pub struct GameRender {
 }
 
 impl GameRender {
-    pub fn new() -> Self {
+    pub unsafe fn new() -> Self {
         // Prebuilt IBO for 11089 quads.
         let mut vec = Vec::with_capacity(66534);
         for i in 0..11089 {
@@ -35,6 +39,9 @@ impl GameRender {
 
             ibo,
 
+            humanoid_xy: ezgl::Buffer::new(),
+            humanoid_rgb: ezgl::Buffer::new(),
+
             max_tiles: 0,
             tile_xyz: ezgl::Buffer::new(),
             tile_tex_uv: ezgl::Buffer::new(),
@@ -46,7 +53,9 @@ impl GameRender {
         }
     }
 
-    pub fn render(&mut self, game_frame: GameFrame) {
+    pub unsafe fn render(&mut self, game_frame: GameFrame) {
+        ezgl::gl::Clear(ezgl::gl::COLOR_BUFFER_BIT | ezgl::gl::DEPTH_BUFFER_BIT);
+
         // view calculation
         let view = {
             use cgmath::*;
@@ -61,6 +70,13 @@ impl GameRender {
             matrix = matrix * Matrix3::from_translation(Vector2::new(-w / 2. - x, -h / 2. - y));
             matrix
         };
+
+        // Generate humanoid buffer data
+        /*let humanoid_count = super::functions::gen_humanoid_buffers(
+            &mut self.humanoid_xy,
+            &mut self.humanoid_rgb,
+            game_frame.humanoid_xys,
+        );*/
 
         // Fill bg tile buffers with data
         let tile_count = super::functions::gen_tile_buffers(

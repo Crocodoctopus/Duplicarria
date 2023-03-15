@@ -8,6 +8,9 @@ pub struct GameFrame {
     pub view_w: usize,
     pub view_h: usize,
 
+    // Humanoid layer.
+    pub humanoid_xys: Vec<(f32, f32)>,
+
     // Tile layer.
     pub tiles_x: usize,
     pub tiles_y: usize,

@@ -62,7 +62,7 @@ impl GameUpdate {
                                  event: NetEvent| {
             connections
                 .iter_mut()
-                .filter(|(&k, _)| k == addr)
+                .filter(|(&k, _)| k != addr)
                 .for_each(|(_, vec)| {
                     vec.push(event.clone());
                 })
@@ -114,9 +114,13 @@ impl GameUpdate {
                 //
                 NetEvent::BreakForeground(x, y) => {
                     match self.foreground_tiles.get_mut(x as _, y as _) {
-                        Some(x) => {
-                            *x = Tile::None;
-                            partial_broadcast(&mut self.connections, addr, event);
+                        Some(tile) => {
+                            *tile = Tile::None;
+                            partial_broadcast(
+                                &mut self.connections,
+                                addr,
+                                NetEvent::UpdateForegroundTile(x, y, Tile::None),
+                            );
                         }
                         None => {}
                     }
@@ -125,9 +129,13 @@ impl GameUpdate {
                 //
                 NetEvent::BreakBackground(x, y) => {
                     match self.background_tiles.get_mut(x as _, y as _) {
-                        Some(x) => {
-                            *x = Tile::None;
-                            partial_broadcast(&mut self.connections, addr, event);
+                        Some(tile) => {
+                            *tile = Tile::None;
+                            partial_broadcast(
+                                &mut self.connections,
+                                addr,
+                                NetEvent::UpdateBackgroundTile(x, y, Tile::None),
+                            );
                         }
                         None => {}
                     }
@@ -147,7 +155,11 @@ impl GameUpdate {
     ) -> bool {
         use std::mem::take;
         for (&addr, events) in self.connections.iter_mut() {
-            send_to(addr, take(events));
+            if events.len() > 0 {
+                let s: String = format!("{events:?}").chars().take(200).collect();
+                println!("[server] {s} sent to {addr:?}");
+                send_to(addr, take(events));
+            }
         }
 
         return self.kill;

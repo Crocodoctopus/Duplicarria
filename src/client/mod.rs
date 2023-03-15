@@ -65,7 +65,7 @@ pub fn client_update_thread(
     let mut game_update = GameUpdate::new(window_w, window_h);
 
     // Create a server (and connect).
-    let (server_port, server_handle) = crate::server::launch_server(0);
+    let server_port = 0xCAFE;
     let socket = UdpSocket::bind(("127.0.0.1", 0)).unwrap();
     socket.connect(("127.0.0.1", server_port));
     socket.set_nonblocking(true);
@@ -118,9 +118,6 @@ pub fn client_update_thread(
     // Send kill.
     send(&socket, NetEvent::Close);
 
-    // Wait for server shutdown.
-    server_handle.join().unwrap();
-
     println!("[Client] Update thread closed.");
     return;
 }
@@ -146,14 +143,13 @@ pub fn client_render_thread(
     };
 
     // Initialize render state.
-    let mut game_render = GameRender::new();
+    let mut game_render = unsafe { GameRender::new() };
 
     for frame in render_recv.iter().skip(1) {
         // Render frame.
         unsafe {
-            ezgl::gl::Clear(ezgl::gl::COLOR_BUFFER_BIT | ezgl::gl::DEPTH_BUFFER_BIT);
+            game_render.render(frame);
         }
-        game_render.render(frame);
         windowed_context.swap_buffers().unwrap();
     }
 
