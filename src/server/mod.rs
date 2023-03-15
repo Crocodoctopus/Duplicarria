@@ -10,7 +10,7 @@ use crate::time::*;
 pub fn launch_server(port: u16) -> (u16, JoinHandle<()>) {
     // Create socket.
     let socket = UdpSocket::bind(("127.0.0.1", port)).unwrap();
-    socket.set_nonblocking(true);
+    socket.set_nonblocking(true).unwrap();
     let port = socket.local_addr().unwrap().port();
 
     // Spawn server update thread.

@@ -23,7 +23,7 @@ mod time;
 use glutin::{
     dpi::LogicalSize, event_loop::EventLoop, window::WindowBuilder, Api, ContextBuilder, GlRequest,
 };
-//
+
 fn main() {
     // Build window and event loop.
     let event_loop = EventLoop::new();

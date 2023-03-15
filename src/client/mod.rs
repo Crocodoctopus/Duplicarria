@@ -1,4 +1,3 @@
-mod functions;
 mod game_frame;
 mod game_render;
 mod game_update;

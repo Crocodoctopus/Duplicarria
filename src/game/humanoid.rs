@@ -37,3 +37,4 @@ pub struct HumanoidPhysics {
 pub enum HumanoidAi {
     Player,
 }
+
