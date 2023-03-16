@@ -117,24 +117,22 @@ impl GameUpdate {
             outbound: Vec::new(),
             chunks,
 
-            humanoids: vec![
-                (
-                    usize::MAX,
-                    HumanoidState {
-                        run_state: HumanoidRunState::Idle,
-                        use_state: HumanoidUseState::None,
-                        direction: HumanoidDirection::Right,
-                    },
-                    HumanoidPhysics {
-                        x: 32.,
-                        y: 32.,
-                        dx: 0.,
-                        dy: 0.,
-                        grounded: false,
-                    },
-                    HumanoidAi::Player,
-                )
-            ],
+            humanoids: vec![(
+                usize::MAX,
+                HumanoidState {
+                    run_state: HumanoidRunState::Idle,
+                    use_state: HumanoidUseState::None,
+                    direction: HumanoidDirection::Right,
+                },
+                HumanoidPhysics {
+                    x: 64.,
+                    y: 64.,
+                    dx: 0.,
+                    dy: 0.,
+                    grounded: false,
+                },
+                HumanoidAi::Player,
+            )],
 
             world_w: 0,
             world_h: 0,
@@ -280,11 +278,13 @@ impl GameUpdate {
         }
 
         // Ensure the view is always inbounds.
-        self.view_pos.0 = ((self.view_pos.0 + self.view_size.0).min(self.world_w * 8 - 16)
-            - self.view_size.0)
+        self.view_pos.0 = (self.view_pos.0 + self.view_size.0)
+            .min((self.world_w * 8).saturating_sub(16))
+            .saturating_sub(self.view_size.0)
             .max(16);
-        self.view_pos.1 = ((self.view_pos.1 + self.view_size.1).min(self.world_h * 8 - 16)
-            - self.view_size.1)
+        self.view_pos.1 = (self.view_pos.1 + self.view_size.1)
+            .min((self.world_h * 8).saturating_sub(16))
+            .saturating_sub(self.view_size.1)
             .max(16);
 
         // Request from the server any chunks that may now be onscreen (Should client be the one to ask this?).
@@ -362,7 +362,11 @@ impl GameUpdate {
             .unwrap();
 
         // Prepare player data.
-        let humanoid_xys: Vec<(f32, f32)> = self.humanoids.iter().map(|(_, _, physics, _)| (physics.x, physics.y)).collect();
+        let humanoid_positions: Vec<(f32, f32)> = self
+            .humanoids
+            .iter()
+            .map(|(_, _, physics, _)| (physics.x, physics.y))
+            .collect();
 
         // Construct frame.
         let frame = (!self.exit).then(|| GameFrame {
@@ -371,7 +375,7 @@ impl GameUpdate {
             view_w: self.view_size.0,
             view_h: self.view_size.1,
 
-            humanoid_xys,
+            humanoid_positions,
 
             tiles_x,
             tiles_y,

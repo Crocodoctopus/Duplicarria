@@ -1,6 +1,6 @@
 use super::game_frame::GameFrame;
-use std::collections::HashMap;
 use ezgl::gl;
+use std::collections::HashMap;
 
 pub struct GameRender {
     textures: HashMap<&'static str, ezgl::Texture2D>,
@@ -41,7 +41,7 @@ impl GameRender {
             ibo,
 
             humanoid_xy: ezgl::Buffer::new(),
-            humanoid_rgb: Buffer::new(),
+            humanoid_rgb: ezgl::Buffer::new(),
 
             max_tiles: 0,
             tile_xyz: ezgl::Buffer::new(),
@@ -73,11 +73,18 @@ impl GameRender {
         };
 
         // Generate humanoid buffer data
-        /*let humanoid_count = gen_humanoid_buffers(
+        let humanoid_count = gen_humanoid_buffers(
             &mut self.humanoid_xy,
             &mut self.humanoid_rgb,
-            game_frame.humanoid_xys,
-        );*/
+            &game_frame.humanoid_positions,
+        );
+
+        // Render humanoids
+        ezgl::Draw::start_tri_draw(humanoid_count as u32 / 2, &self.programs["quad"], &self.ibo)
+            .with_buffer(&self.humanoid_xy, "vert_xy")
+            .with_buffer(&self.humanoid_rgb, "vert_rgb")
+            .with_uniform(view.as_ref() as &[[f32; 3]; 3], "view_matrix") 
+            .draw();
 
         // Fill bg tile buffers with data
         let tile_count = gen_tile_buffers(
@@ -132,16 +139,8 @@ impl GameRender {
 
         // Render light map.
         unsafe {
-            gl::TexParameteri(
-                gl::TEXTURE_2D,
-                gl::TEXTURE_MIN_FILTER,
-                gl::NEAREST as _,
-            );
-            gl::TexParameteri(
-                gl::TEXTURE_2D,
-                gl::TEXTURE_MAG_FILTER,
-                gl::LINEAR as _,
-            );
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as _);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as _);
         }
         ezgl::Draw::start_tri_draw(2, &self.programs["light"], &self.ibo)
             .with_buffer(&self.light_xy, "vert_xy")
@@ -153,11 +152,11 @@ impl GameRender {
     }
 }
 
+use crate::game::lighting::*;
 /// Various update functions:
 use crate::game::tile::*;
 use array2d::Array2D;
 use ezgl::{Buffer, Texture2D};
-use crate::game::lighting::*;
 
 fn load_game_textures() -> HashMap<&'static str, ezgl::Texture2D> {
     let root = crate::io::get_root().join("resources");
@@ -175,28 +174,19 @@ fn load_game_textures() -> HashMap<&'static str, ezgl::Texture2D> {
 
 fn load_game_programs() -> HashMap<&'static str, ezgl::Program> {
     let root = crate::io::get_root().join("resources");
+    let load_list = ["fg_tile", "bg_tile", "light", "quad"];
     let mut hmap = HashMap::new();
 
-    let program = ezgl::ProgramBuilder::new()
-        .with(ezgl::Shader::from_file(&root.join("fg_tile.frag")).unwrap())
-        .with(ezgl::Shader::from_file(&root.join("fg_tile.vert")).unwrap())
-        .build()
-        .unwrap();
-    hmap.insert("fg_tile", program);
-
-    let program = ezgl::ProgramBuilder::new()
-        .with(ezgl::Shader::from_file(&root.join("bg_tile.frag")).unwrap())
-        .with(ezgl::Shader::from_file(&root.join("bg_tile.vert")).unwrap())
-        .build()
-        .unwrap();
-    hmap.insert("bg_tile", program);
-
-    let program = ezgl::ProgramBuilder::new()
-        .with(ezgl::Shader::from_file(&root.join("light.frag")).unwrap())
-        .with(ezgl::Shader::from_file(&root.join("light.vert")).unwrap())
-        .build()
-        .unwrap();
-    hmap.insert("light", program);
+    for string in load_list {
+        hmap.insert(
+            string,
+            ezgl::ProgramBuilder::new()
+                .with(ezgl::Shader::from_file(&root.join(format!("{}.frag", string))).unwrap())
+                .with(ezgl::Shader::from_file(&root.join(format!("{}.vert", string))).unwrap())
+                .build()
+                .unwrap(),
+        );
+    }
 
     hmap
 }
@@ -335,3 +325,20 @@ pub fn gen_light_buffers(
         .unwrap();
 }
 
+fn gen_humanoid_buffers(
+    xy: &mut Buffer<(f32, f32)>,
+    rgb: &mut Buffer<(f32, f32, f32)>,
+    positions: &Vec<(f32, f32)>,
+) -> usize {
+    let len = positions.len();
+    let mut xy_vec = Vec::with_capacity(len * 4);
+    let mut rgb_vec = Vec::with_capacity(len * 4);
+    let red = (1.0, 0.0, 0.0);
+    for &(x, y) in positions {
+        xy_vec.extend_from_slice(&[(x, y), (x + 32.0, y), (x + 32.0, y + 48.0), (x, y + 48.0)]);
+        rgb_vec.extend_from_slice(&[red, red, red, red]);
+    }
+    xy.init(gl::ARRAY_BUFFER, &xy_vec[..]);
+    rgb.init(gl::ARRAY_BUFFER, &rgb_vec[..]);
+    len * 4
+}
