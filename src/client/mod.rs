@@ -27,7 +27,7 @@ pub fn launch_client(
     windowed_context: WindowedContext<NotCurrent>,
     input_recv: Receiver<InputEvent>,
 ) -> (JoinHandle<()>, JoinHandle<()>) {
-    let (render_send, render_recv) = crossbeam_channel::bounded(1);
+    let (render_send, render_recv) = crossbeam_channel::unbounded();
 
     // Spawn client update thread.
     let glutin::dpi::PhysicalSize { width, height } = windowed_context.window().inner_size();
@@ -144,11 +144,21 @@ pub fn client_render_thread(
     // Initialize render state.
     let mut game_render = unsafe { GameRender::new() };
 
-    for frame in render_recv.iter().skip(1) {
+    // Wait on current frame.
+    let mut current_frame = render_recv.recv().unwrap();
+    
+    loop {
+        // Get most recent frame.
+        while !render_recv.is_empty() {
+            current_frame = render_recv.recv().unwrap();
+        }
+
         // Render frame.
         unsafe {
-            game_render.render(frame);
+            game_render.render(&current_frame);
         }
+
+        // Swap buffers.
         windowed_context.swap_buffers().unwrap();
     }
 
