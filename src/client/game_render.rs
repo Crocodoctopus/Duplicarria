@@ -54,7 +54,7 @@ impl GameRender {
         }
     }
 
-    pub unsafe fn render(&mut self, game_frame: GameFrame) {
+    pub unsafe fn render(&mut self, game_frame: &GameFrame) {
         gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
         // view calculation
@@ -83,7 +83,7 @@ impl GameRender {
         ezgl::Draw::start_tri_draw(humanoid_count as u32 / 2, &self.programs["quad"], &self.ibo)
             .with_buffer(&self.humanoid_xy, "vert_xy")
             .with_buffer(&self.humanoid_rgb, "vert_rgb")
-            .with_uniform(view.as_ref() as &[[f32; 3]; 3], "view_matrix") 
+            .with_uniform(view.as_ref() as &[[f32; 3]; 3], "view_matrix")
             .draw();
 
         // Fill bg tile buffers with data
@@ -93,7 +93,7 @@ impl GameRender {
             &mut self.tile_msk_uv,
             game_frame.tiles_x,
             game_frame.tiles_y,
-            game_frame.background_tiles,
+            &game_frame.background_tiles,
         );
 
         // Render tiles.
@@ -113,7 +113,7 @@ impl GameRender {
             &mut self.tile_msk_uv,
             game_frame.tiles_x,
             game_frame.tiles_y,
-            game_frame.foreground_tiles,
+            &game_frame.foreground_tiles,
         );
 
         // Render tiles.
@@ -133,7 +133,7 @@ impl GameRender {
             &mut self.light_tex,
             game_frame.light_x,
             game_frame.light_y,
-            game_frame.light_map_r,
+            &game_frame.light_map_r,
             (255, 0, 0),
         );
 
@@ -197,7 +197,7 @@ pub fn gen_tile_buffers(
     msk_uv: &mut Buffer<(f32, f32)>,
     tiles_x: usize, // units in tiles
     tiles_y: usize, // units in tiles
-    tiles: Array2D<Tile>,
+    tiles: &Array2D<Tile>,
 ) -> u32 {
     // Calculate onscreen tiles.
     let (tiles_w, tiles_h) = tiles.size();
@@ -284,7 +284,7 @@ pub fn gen_light_buffers(
     tex: &mut Texture2D,
     x: usize, // units in tiles
     y: usize, // units in tiles
-    values: Array2D<u8>,
+    values: &Array2D<u8>,
     _rgb: (u8, u8, u8),
 ) {
     let (w, h) = values.size();
