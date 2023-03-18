@@ -16,7 +16,7 @@ use crate::game::net::*;
 use crate::net::*;
 use crate::time::*;
 
-pub fn time<T>(t: &mut u64, mut f: impl FnMut() -> T) -> T {
+pub fn time<T>(t: &mut u64, mut f: impl FnOnce() -> T) -> T {
     let start = crate::time::get_microseconds_as_u64();
     let out = f();
     *t += crate::time::get_microseconds_as_u64() - start;
@@ -51,8 +51,6 @@ pub fn client_update_thread(
     (window_w, window_h): (f32, f32),
 ) {
     println!("[Client] Update thread start.");
-    let frametime = 16_666; // us
-    let mut timestamp = get_microseconds_as_u64();
 
     // Debug.
     let mut print_acc = 0;
@@ -60,15 +58,40 @@ pub fn client_update_thread(
     let mut step_us = 0u64;
     let mut postframe_us = 0u64;
 
-    // Create client state.
-    let mut game_update = GameUpdate::new(window_w, window_h);
-
-    // Create a server (and connect).
+    // Create a server.
+    let mut net_events = vec![]; // events recv from server
     let server_port = 0xCAFE;
     let socket = UdpSocket::bind(("127.0.0.1", 0)).unwrap();
     socket.connect(("127.0.0.1", server_port));
     socket.set_nonblocking(true);
-    send(&socket, NetEvent::Connect);
+
+    // Connect protocol.
+    let (world_w, world_h, player_id) = 'v: loop {
+        // Send connect request.
+        send(&socket, &[NetEvent::Connect]);
+
+        // Wait 1s. 
+        std::thread::sleep(std::time::Duration::from_millis(300));
+
+        // Check socket for data. 
+        recv(&socket, &mut net_events);
+
+        // The next message must be Accept.
+        if let Some(&NetEvent::Accept(world_w, world_h, player_id)) = net_events.get(0) {
+            net_events.remove(0);
+            break 'v (world_w, world_h, player_id);
+        }
+
+        // Clear, try again.
+        net_events.clear();
+    };
+
+    // Create client state.
+    let mut game_update = GameUpdate::new(window_w, window_h, world_w, world_h, player_id);
+
+    // Time keeping.
+    let frametime = 16_666; // us
+    let mut timestamp = get_microseconds_as_u64();
 
     loop {
         // Wait until enough has passed for at least 1 frame.
@@ -76,7 +99,12 @@ pub fn client_update_thread(
 
         // Run preframe.
         time(&mut preframe_us, || {
-            game_update.preframe(timestamp, input_recv.try_iter(), recv(&socket).into_iter())
+            recv(&socket, &mut net_events);
+            game_update.preframe(
+                timestamp,
+                input_recv.try_iter(),
+                std::mem::take(&mut net_events).into_iter(),
+            );
         });
 
         // Simulate the time between timestamp and next_timestamp.
@@ -93,7 +121,7 @@ pub fn client_update_thread(
         let (frame, net_events) = time(&mut postframe_us, || game_update.postframe(timestamp));
 
         // Send net messages.
-        send(&socket, net_events);
+        send(&socket, &net_events);
 
         // Send frame to render thread.
         match frame {
@@ -115,7 +143,7 @@ pub fn client_update_thread(
     }
 
     // Send kill.
-    send(&socket, NetEvent::Close);
+    send(&socket, &[NetEvent::Close]);
 
     println!("[Client] Update thread closed.");
     return;
@@ -146,7 +174,7 @@ pub fn client_render_thread(
 
     // Wait on current frame.
     let mut current_frame = render_recv.recv().unwrap();
-    
+
     loop {
         // Get most recent frame.
         while !render_recv.is_empty() {

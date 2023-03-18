@@ -2,25 +2,28 @@ use game::tile::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum NetEvent {
-    // connection
+    // Connection
     Connect,
-    Accept(u16, u16), // world w/h (in chunks)
+    Accept(u16, u16, u64), // world_w, world_h, player_x, player_y
     Ping,
     Disconnect,
     Close,
+    
+    // Humanoid.
+    HumanoidUpdate(u64, f32, f32), // id, x, y
 
-    // To server
+    // To server.
     RequestChunk(u16, u16),
     BreakForeground(u16, u16),
     BreakBackground(u16, u16),
 
-    // To client
+    // To client.
     UpdateForegroundTile(u16, u16, Tile),
     UpdateBackgroundTile(u16, u16, Tile),
     UpdateForegroundChunk(u16, u16, Box<[Tile]>),
     UpdateBackgroundChunk(u16, u16, Box<[Tile]>),
 
-    // chat
+    // Chat.
     ChatMessage(String),
 }
 

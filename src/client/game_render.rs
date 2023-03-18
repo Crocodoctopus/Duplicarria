@@ -72,20 +72,6 @@ impl GameRender {
             matrix
         };
 
-        // Generate humanoid buffer data
-        let humanoid_count = gen_humanoid_buffers(
-            &mut self.humanoid_xy,
-            &mut self.humanoid_rgb,
-            &game_frame.humanoid_positions,
-        );
-
-        // Render humanoids
-        ezgl::Draw::start_tri_draw(humanoid_count as u32 / 2, &self.programs["quad"], &self.ibo)
-            .with_buffer(&self.humanoid_xy, "vert_xy")
-            .with_buffer(&self.humanoid_rgb, "vert_rgb")
-            .with_uniform(view.as_ref() as &[[f32; 3]; 3], "view_matrix")
-            .draw();
-
         // Fill bg tile buffers with data
         let tile_count = gen_tile_buffers(
             &mut self.tile_xyz,
@@ -104,6 +90,20 @@ impl GameRender {
             .with_uniform(view.as_ref() as &[[f32; 3]; 3], "view_matrix")
             .with_texture(&self.textures["tile_sheet.png"], "tile_sheet")
             .with_texture(&self.textures["mask_sheet.png"], "mask_sheet")
+            .draw();
+
+        // Generate humanoid buffer data
+        let humanoid_count = gen_humanoid_buffers(
+            &mut self.humanoid_xy,
+            &mut self.humanoid_rgb,
+            &game_frame.humanoid_positions,
+        );
+
+        // Render humanoids
+        ezgl::Draw::start_tri_draw(humanoid_count as u32 / 2, &self.programs["quad"], &self.ibo)
+            .with_buffer(&self.humanoid_xy, "vert_xy")
+            .with_buffer(&self.humanoid_rgb, "vert_rgb")
+            .with_uniform(view.as_ref() as &[[f32; 3]; 3], "view_matrix")
             .draw();
 
         // Fill fg tile buffers with data
@@ -334,8 +334,15 @@ fn gen_humanoid_buffers(
     let mut xy_vec = Vec::with_capacity(len * 4);
     let mut rgb_vec = Vec::with_capacity(len * 4);
     let red = (1.0, 0.0, 0.0);
+    const HUMANOID_WIDTH: f32 = crate::game::humanoid::HUMANOID_WIDTH as f32;
+    const HUMANOID_HEIGHT: f32 = crate::game::humanoid::HUMANOID_HEIGHT as f32;
     for &(x, y) in positions {
-        xy_vec.extend_from_slice(&[(x, y), (x + 32.0, y), (x + 32.0, y + 48.0), (x, y + 48.0)]);
+        xy_vec.extend_from_slice(&[
+            (x, y),
+            (x + HUMANOID_WIDTH, y),
+            (x + HUMANOID_WIDTH, y + HUMANOID_HEIGHT),
+            (x, y + HUMANOID_HEIGHT),
+        ]);
         rgb_vec.extend_from_slice(&[red, red, red, red]);
     }
     xy.init(gl::ARRAY_BUFFER, &xy_vec[..]);

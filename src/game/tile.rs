@@ -15,4 +15,3 @@ pub enum Tile {
     Dirt = 1,
     Stone = 2,
 }
-

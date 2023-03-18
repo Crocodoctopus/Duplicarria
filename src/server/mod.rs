@@ -27,6 +27,9 @@ pub fn server_update_thread(socket: UdpSocket) {
     let frametime = 100_000; // us
     let mut timestamp = get_microseconds_as_u64();
 
+    //
+    let mut net_events = vec![];
+
     // Create server state.
     let mut game_update = GameUpdate::new();
 
@@ -35,7 +38,8 @@ pub fn server_update_thread(socket: UdpSocket) {
         let next_timestamp = wait(timestamp + frametime);
 
         // Run preframe.
-        game_update.preframe(timestamp, recv_from(&socket).into_iter());
+        recv_from(&socket, &mut net_events);
+        game_update.preframe(timestamp, std::mem::take(&mut net_events).into_iter());
 
         // Simulate the time between timestamp and next_timestamp:
         let frames = (next_timestamp - timestamp) / frametime;
@@ -46,7 +50,7 @@ pub fn server_update_thread(socket: UdpSocket) {
 
         // Run postframe.
         use crate::game::net::NetEvent;
-        let send_to_fn = |addr, net_events: Vec<NetEvent>| send_to(&socket, addr, net_events);
+        let send_to_fn = |addr, net_events: &Vec<NetEvent>| send_to(&socket, addr, net_events);
         if game_update.postframe(timestamp, send_to_fn) == true {
             break;
         }

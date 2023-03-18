@@ -309,6 +309,16 @@ impl<T> Index<usize> for FastArray2D<T> {
     }
 }
 
+impl<T> Index2d<usize> for FastArray2D<T> {
+    fn size(&self) -> (usize, usize) {
+        self.size()
+    }
+
+    fn stride(&self) -> usize {
+        self.size().0
+    }
+}
+
 impl<T: Copy + std::fmt::Debug> FastArray2D<T> {
     pub fn from_value(w_exp: usize, h_exp: usize, t: T) -> Self {
         let width = 1 << w_exp;
