@@ -15,8 +15,14 @@ pub fn for_each_sub_wrapping(
     yr: Range<usize>,
     mut f: impl FnMut(usize, usize, usize),
 ) {
+    // If no iteration can occur, early exit.
+    if xr.start >= xr.end || yr.start >= yr.end {
+        return;
+    }
+
     // How many times a wrap occurs, in both directions.
     let v_boundary_crosses = (xr.end - 1) / w - xr.start / w;
+    //let v_boundary_crosses = (xr.end) / w - xr.start / w;
     let h_boundary_crosses = (yr.end - 1) / h - yr.start / h;
 
     // apply masks
