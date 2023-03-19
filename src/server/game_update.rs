@@ -63,7 +63,7 @@ impl GameUpdate {
         net_events: impl Iterator<Item = (NetEvent, SocketAddr)>,
     ) {
         let timestamp_ms = timestamp_us / 1_000;
-        let timestamp_s = timestamp_us / 1_000_000;
+        let _timestamp_s = timestamp_us / 1_000_000;
 
         // Add NetEvent to all NetEvent vectors, except for the one that matches addr.
         let partial_broadcast = |connections: &mut HashMap<SocketAddr, Connection>,
@@ -78,9 +78,9 @@ impl GameUpdate {
         };
 
         // Add NetEvent to all NetEvent vectors.
-        let broadcast = |connections: &mut HashMap<SocketAddr, Connection>,
-                         addr: SocketAddr,
-                         event: NetEvent| {
+        let _broadcast = |connections: &mut HashMap<SocketAddr, Connection>,
+                          _addr: SocketAddr,
+                          event: NetEvent| {
             connections.iter_mut().for_each(|(_, c)| {
                 c.net_events.push(event.clone());
             })
@@ -121,7 +121,7 @@ impl GameUpdate {
                 // Establish connection.
                 println!("[Server] {:?} has connected.", addr);
                 self.humanoids.insert(humanoid_id, humanoid);
-                let connection = self.connections.entry(addr).or_insert_with(|| Connection {
+                let _connection = self.connections.entry(addr).or_insert_with(|| Connection {
                     last_msg: timestamp_ms as u16,
                     humanoid_id,
                     net_events,
@@ -245,7 +245,7 @@ impl GameUpdate {
         }
 
         // Net stuff =/
-        use std::mem::take;
+
         println!("#############");
         let mut sent = 0;
         for (&addr, connection) in self.connections.iter_mut() {

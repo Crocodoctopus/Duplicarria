@@ -39,7 +39,7 @@ pub enum HumanoidAi {
     Player,
 }
 
-pub fn update_humanoid_physics_x(state: &mut HumanoidState, physics: &mut HumanoidPhysics) {
+pub fn update_humanoid_physics_x(_state: &mut HumanoidState, physics: &mut HumanoidPhysics) {
     let max_velocity = 3.;
 
     // Clamp velocity

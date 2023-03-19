@@ -144,7 +144,7 @@ impl GameUpdate {
         net_events: impl IntoIterator<Item = NetEvent>,
     ) {
         let timestamp_ms = timestamp_us / 1_000;
-        let timestamp_s = timestamp_us / 1_000_000;
+        let _timestamp_s = timestamp_us / 1_000_000;
 
         // Clear all outbound messages from last frame.
         self.outbound.clear();
@@ -283,8 +283,8 @@ impl GameUpdate {
     #[inline(always)]
     pub fn step(&mut self, timestamp_us: u64, frametime: u64) {
         let _dt = frametime as f32 / 1_000_000.;
-        let timestamp_ms = timestamp_us / 1_000;
-        let timestamp_s = timestamp_us / 1_000_000;
+        let _timestamp_ms = timestamp_us / 1_000;
+        let _timestamp_s = timestamp_us / 1_000_000;
 
         // Center camera around humanoids (if it exists).
         if let Some(player) = self.humanoids.get(&self.player_id) {
@@ -308,7 +308,7 @@ impl GameUpdate {
             let right_cmd = self.right_queue & 0b1 == 0b1;
             let jump_cmd = self.up_queue & 0b11 == 0b01;
             let grounded = player.physics.grounded;
-            let nodx = player.physics.dx.round() == 0.0;
+            let _nodx = player.physics.dx.round() == 0.0;
 
             // Cancel all acceleration.
             player.physics.ddx = 0.;

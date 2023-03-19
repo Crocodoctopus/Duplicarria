@@ -16,7 +16,7 @@ use crate::game::net::*;
 use crate::net::*;
 use crate::time::*;
 
-pub fn time<T>(t: &mut u64, mut f: impl FnOnce() -> T) -> T {
+pub fn time<T>(t: &mut u64, f: impl FnOnce() -> T) -> T {
     let start = crate::time::get_microseconds_as_u64();
     let out = f();
     *t += crate::time::get_microseconds_as_u64() - start;
@@ -177,9 +177,11 @@ pub fn client_render_thread(
 
     loop {
         // Get most recent frame.
-        while !render_recv.is_empty() {
-            current_frame = render_recv.recv().unwrap();
-        }
+        current_frame = match render_recv.try_recv() {
+            Ok(frame) => frame,
+            Err(crossbeam_channel::TryRecvError::Empty) => current_frame,
+            Err(crossbeam_channel::TryRecvError::Disconnected) => break, // channel closed
+        };
 
         // Render frame.
         unsafe {

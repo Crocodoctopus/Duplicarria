@@ -36,7 +36,7 @@ pub fn collect_newly_colliding_tiles_x(
 
     // Get the tiles.
     let (w, h) = tiles.size();
-    for_each_sub_wrapping(w, h, x1..x2, y1..y2, |x, y, index| {
+    for_each_sub_wrapping(w, h, x1..x2, y1..y2, |_x, _y, index| {
         let tile = tiles[index];
         if !matches!(tile, Tile::None) {
             vec.push(tile);
@@ -79,7 +79,7 @@ pub fn collect_newly_colliding_tiles_y(
 
     // Get the tiles.
     let (w, h) = tiles.size();
-    for_each_sub_wrapping(w, h, x1..x2, y1..y2, |x, y, index| {
+    for_each_sub_wrapping(w, h, x1..x2, y1..y2, |_x, _y, index| {
         let tile = tiles[index];
         if !matches!(tile, Tile::None) {
             vec.push(tile);

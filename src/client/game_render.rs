@@ -387,7 +387,7 @@ fn gen_debug_text_buffers(
     let w = 8.;
     let h = 14.;
     let tex_w = 10; // in chars
-    let tex_h = 10; // in chars
+    let _tex_h = 10; // in chars
 
     // Fill xy and uv vecs.
     let mut x = offset.0;
