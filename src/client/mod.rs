@@ -70,10 +70,10 @@ pub fn client_update_thread(
         // Send connect request.
         send(&socket, &[NetEvent::Connect]);
 
-        // Wait 1s. 
+        // Wait 1s.
         std::thread::sleep(std::time::Duration::from_millis(300));
 
-        // Check socket for data. 
+        // Check socket for data.
         recv(&socket, &mut net_events);
 
         // The next message must be Accept.

@@ -2,6 +2,9 @@ use crate::array2d::Array2D;
 use crate::game::tile::Tile;
 
 pub struct GameFrame {
+    // Debug printing.
+    pub debug_text: String,
+
     // View data.
     pub view_x: usize,
     pub view_y: usize,

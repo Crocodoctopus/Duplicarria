@@ -317,7 +317,7 @@ impl<T> Index<usize> for FastArray2D<T> {
 
 impl<T> Index2d<usize> for FastArray2D<T> {
     fn size(&self) -> (usize, usize) {
-        self.size()
+        (self.x_mask + 1, self.y_mask + 1)
     }
 
     fn stride(&self) -> usize {
@@ -371,10 +371,6 @@ impl<T: Copy + std::fmt::Debug> FastArray2D<T> {
 
     pub fn into_raw(self) -> Box<[T]> {
         self.data
-    }
-
-    pub fn size(&self) -> (usize, usize) {
-        (self.x_mask + 1, self.y_mask + 1)
     }
 
     pub fn get(&self, x: usize, y: usize) -> Option<&T> {

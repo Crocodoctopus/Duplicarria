@@ -105,6 +105,8 @@ impl GameUpdate {
                         y: 32.,
                         dx: 0.,
                         dy: 0.,
+                        ddx: 0.,
+                        ddy: 0.,
                         grounded: true,
                     },
                 };
@@ -163,8 +165,16 @@ impl GameUpdate {
                         .background_tiles
                         .clone_sub(xr.clone(), yr.clone())
                         .unwrap();
-                    connection.net_events.push(NetEvent::UpdateForegroundChunk(x, y, fg.into_raw()));
-                    connection.net_events.push(NetEvent::UpdateBackgroundChunk(x, y, bg.into_raw()));
+                    connection.net_events.push(NetEvent::UpdateForegroundChunk(
+                        x,
+                        y,
+                        fg.into_raw(),
+                    ));
+                    connection.net_events.push(NetEvent::UpdateBackgroundChunk(
+                        x,
+                        y,
+                        bg.into_raw(),
+                    ));
                 }
                 NetEvent::BreakForeground(x, y) => {
                     match self.foreground_tiles.get_mut(x as _, y as _) {
@@ -240,7 +250,10 @@ impl GameUpdate {
         let mut sent = 0;
         for (&addr, connection) in self.connections.iter_mut() {
             if connection.net_events.len() > 0 {
-                let s: String = format!("{:?}", connection.net_events).chars().take(200).collect();
+                let s: String = format!("{:?}", connection.net_events)
+                    .chars()
+                    .take(200)
+                    .collect();
                 println!("[server] {s} sent to {addr:?}");
                 sent += send_to(addr, &connection.net_events);
                 connection.net_events.clear();

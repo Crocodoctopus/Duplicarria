@@ -16,6 +16,10 @@ pub struct GameUpdate {
     timer: usize,
     exit: bool,
 
+    // Network:
+    outbound: Vec<NetEvent>,
+    chunks: FastArray2D<(u16, u16)>,
+
     // Input:
     cursor_x: usize,
     cursor_y: usize,
@@ -29,10 +33,6 @@ pub struct GameUpdate {
     // Client view:
     view_pos: (usize, usize),
     view_size: (usize, usize),
-
-    // Network:
-    outbound: Vec<NetEvent>,
-    chunks: FastArray2D<(u16, u16)>,
 
     // Humanoid
     player_id: u64,
@@ -137,7 +137,7 @@ impl GameUpdate {
         }
     }
 
-    pub fn preframe<'a>(
+    pub fn preframe(
         &mut self,
         timestamp_us: u64,
         input_events: impl Iterator<Item = InputEvent>,
@@ -145,6 +145,9 @@ impl GameUpdate {
     ) {
         let timestamp_ms = timestamp_us / 1_000;
         let timestamp_s = timestamp_us / 1_000_000;
+
+        // Clear all outbound messages from last frame.
+        self.outbound.clear();
 
         // Net loop.
         for net in net_events {
@@ -203,6 +206,8 @@ impl GameUpdate {
                             y,
                             dx: 0.,
                             dy: 0.,
+                            ddx: 0.,
+                            ddy: 0.,
                             grounded: false,
                         },
                     });
@@ -304,138 +309,31 @@ impl GameUpdate {
             let jump_cmd = self.up_queue & 0b11 == 0b01;
             let grounded = player.physics.grounded;
             let nodx = player.physics.dx.round() == 0.0;
-            match player.state.action_state {
-                HumanoidActionState::Idle => match (left_cmd, right_cmd, jump_cmd) {
-                    (true, false, true) => {
-                        player.state.direction = HumanoidDirection::Left;
-                        player.state.action_state = HumanoidActionState::Jump;
-                        player.state.timestamp_ms = timestamp_ms as u16;
-                    }
-                    (false, true, true) => { 
-                        player.state.direction = HumanoidDirection::Right;
-                        player.state.action_state = HumanoidActionState::Jump;
-                        player.state.timestamp_ms = timestamp_ms as u16;
-                    }
-                    (false, false, true) => { 
-                        player.state.action_state = HumanoidActionState::Jump;
-                        player.state.timestamp_ms = timestamp_ms as u16;
-                    }
-                    (true, false, false) => {
-                        player.state.direction = HumanoidDirection::Left;
-                        player.state.action_state = HumanoidActionState::Run;
-                        player.state.timestamp_ms = timestamp_ms as u16;
-                    }
-                    (false, true, false) => {
-                        player.state.direction = HumanoidDirection::Right;
-                        player.state.action_state = HumanoidActionState::Run;
-                        player.state.timestamp_ms = timestamp_ms as u16;
-                    }
-                    _ => {}
-                },
-                HumanoidActionState::Run => match (left_cmd, right_cmd, jump_cmd, player.state.direction) {
-                    (true, false, true, _) => {
-                        player.state.direction = HumanoidDirection::Left;
-                        player.state.action_state = HumanoidActionState::Jump;
-                        player.state.timestamp_ms = timestamp_ms as u16;
-                    }
-                    (false, true, true, _) => { 
-                        player.state.direction = HumanoidDirection::Right;
-                        player.state.action_state = HumanoidActionState::Jump;
-                        player.state.timestamp_ms = timestamp_ms as u16;
-                    }
-                    (false, false, true, _) => { 
-                        player.state.action_state = HumanoidActionState::Jump;
-                        player.state.timestamp_ms = timestamp_ms as u16;
-                    }
-                    (true, false, false, HumanoidDirection::Right) => {
-                        player.state.direction = HumanoidDirection::Left;
-                        player.state.action_state = HumanoidActionState::Run;
-                        player.state.timestamp_ms = timestamp_ms as u16;
-                    }
-                    (false, true, false, HumanoidDirection::Left) => {
-                        player.state.direction = HumanoidDirection::Right;
-                        player.state.action_state = HumanoidActionState::Run;
-                        player.state.timestamp_ms = timestamp_ms as u16;
-                    }
-                    _ => {}
-                     
-                }
-                //HumanoidActionState::Jump => match (left_cmd, right_cmd, player.state.direction) {
-                //    //():
-                //}
-                _ => {}
+
+            // Cancel all acceleration.
+            player.physics.ddx = 0.;
+            player.physics.ddy = 0.;
+
+            // Move player right
+            if right_cmd && !left_cmd {
+                player.physics.ddx = 0.18;
             }
-            /*match (player.state.action_state, player.state.direction) {
-                // (Run, Right) & GoLeft -> (Run, Left)
-                (HumanoidActionState::Run, HumanoidDirection::Right) if left => {
-                    player.state.direction = HumanoidDirection::Left;
-                    player.state.action_state = HumanoidActionState::Run;
-                    player.state.timestamp_ms = timestamp_ms as u16;
-                }
-                // (Run, Left) & GoRight -> (Run, Right)
-                (HumanoidActionState::Run, HumanoidDirection::Left) if right => {
-                    player.state.direction = HumanoidDirection::Right;
-                    player.state.action_state = HumanoidActionState::Run;
-                    player.state.timestamp_ms = timestamp_ms as u16;
-                }
-                // (Idle, _) & GoLeft -> (Run, Left)
-                (HumanoidActionState::Idle, _) if left => {
-                    player.state.direction = HumanoidDirection::Left;
-                    player.state.action_state = HumanoidActionState::Run;
-                    player.state.timestamp_ms = timestamp_ms as u16;
-                }
-                // (Idle, _) & GoRight -> (Run, Right)
-                (HumanoidActionState::Idle, _) if right => {
-                    player.state.direction = HumanoidDirection::Right;
-                    player.state.action_state = HumanoidActionState::Run;
-                    player.state.timestamp_ms = timestamp_ms as u16;
-                }
-                // (Jump, Left) & GoRight -> (Jump, Right)
-                (HumanoidActionState::Jump, HumanoidDirection::Left) if right => {
-                    player.state.direction = HumanoidDirection::Right;
-                    player.state.action_state = HumanoidActionState::Jump;
-                    player.state.timestamp_ms = timestamp_ms as u16;
-                }
-                // (Jump, Right) & GoLeft -> (Jump, Left)
-                // Run & DoDX -> Idle
-                (HumanoidActionState::Run, _) if nodx => {
-                    player.state.action_state = HumanoidActionState::Idle;
-                }
-                // Jump & GoLeft & IsGrounded -> (Run, Left)
-                (HumanoidActionState::Jump, _) if left && grounded => {
-                    player.state.direction = HumanoidDirection::Left;
-                    player.state.action_state = HumanoidActionState::Run;
-                    player.state.timestamp_ms = timestamp_ms as u16;
-                }
-                // Jump & GoRight & IsGrounded -> (Run, Right)
-                (HumanoidActionState::Jump, _) if right && grounded => {
-                    player.state.direction = HumanoidDirection::Right;
-                    player.state.action_state = HumanoidActionState::Run;
-                    player.state.timestamp_ms = timestamp_ms as u16;
-                }
-                // Jump & IsGrounded -> Idle
-                (HumanoidActionState::Jump, _) if grounded => {
-                    player.state.action_state = HumanoidActionState::Idle;
-                    player.state.timestamp_ms = timestamp_ms as u16;
-                }
-                // Idle | Run -> Jump
-                (HumanoidActionState::Idle | HumanoidActionState::Run, _) => {
-                    // If on ground, and jump is request
-                    if jump && grounded {
-                        player.state.action_state = HumanoidActionState::Jump;
-                        player.state.timestamp_ms = timestamp_ms as u16;
-                    }
-                    // If not grounded
-                    if !grounded {
-                        player.state.action_state = HumanoidActionState::Jump;
-                        player.state.timestamp_ms = timestamp_ms as u16;
-                    }
-                }
-                _ => {}
-            }*/
+            // Move player left
+            if left_cmd && !right_cmd {
+                player.physics.ddx = -0.18;
+            }
+            // Else friction?
+            if !left_cmd && !right_cmd {
+                player.physics.ddx = -player.physics.dx * 0.1;
+            }
+            // Jump
+            if jump_cmd && grounded {
+                player.physics.dy = -5.0;
+            }
         }
 
         // Player physics [TODO: make this neater]
+        let mut tiles = Vec::with_capacity(6); // generic vec
         if let Some(player) = self.humanoids.get_mut(&self.player_id) {
             let player_state = &mut player.state;
             let player_physics = &mut player.physics;
@@ -449,43 +347,29 @@ impl GameUpdate {
                 let going_down = dy > 0.;
 
                 // Calculate tiles that are now colliding with the player.
-                let mut tiles = Vec::with_capacity(6);
-                {
-                    let x1 = (player_physics.x / TILE_SIZE as f32).floor() as usize;
-                    let x2 = ((player_physics.x + HUMANOID_WIDTH as f32) / TILE_SIZE as f32).ceil()
-                        as usize;
-                    let y1 = (last_y / TILE_SIZE as f32).floor() as usize;
-                    let y2 = ((last_y + HUMANOID_HEIGHT as f32) / TILE_SIZE as f32).ceil() as usize;
-                    let y1_new = (player_physics.y / TILE_SIZE as f32).floor() as usize;
-                    let y2_new = ((player_physics.y + HUMANOID_HEIGHT as f32) / TILE_SIZE as f32)
-                        .ceil() as usize;
-                    let (y1, y2) = if going_down {
-                        (y2, y2_new)
-                    } else {
-                        (y1_new, y1)
-                    };
-                    assert!(x2 - x1 < 10); //
-                    assert!(y2 - y1 < 10); //
-                    self.foreground_tiles
-                        .for_each_sub_wrapping(x1..x2, y1..y2, |_x, _y, tile| {
-                            if !matches!(tile, Tile::None) {
-                                tiles.push(*tile);
-                            }
-                        });
-                }
+                let ty = collect_newly_colliding_tiles_y(
+                    last_y,
+                    player_physics.x,
+                    player_physics.y,
+                    HUMANOID_WIDTH as f32,
+                    HUMANOID_HEIGHT as f32,
+                    &self.foreground_tiles,
+                    &mut tiles,
+                );
 
                 // Resolve colliding tiles
                 {
                     player_physics.grounded = false; // assume player isn't grounded
-                    for _tile in tiles {
+                    for _ in &tiles {
                         // apply tile affect
 
                         // correct position
                         if going_down {
+                            player_physics.y = (ty * TILE_SIZE - HUMANOID_HEIGHT) as f32;
                             player_physics.grounded = true;
+                        } else {
+                            player_physics.y = (ty * TILE_SIZE + TILE_SIZE) as f32;
                         }
-                        player_physics.y =
-                            (player_physics.y / TILE_SIZE as f32).round() * TILE_SIZE as f32;
                         player_physics.dy = 0.0;
                     }
                 }
@@ -496,47 +380,36 @@ impl GameUpdate {
                 // Upldate player physics
                 let last_x = player_physics.x;
                 update_humanoid_physics_x(player_state, player_physics);
-                let dx = player_physics.x - last_x;
 
                 // Calculate tiles that are now colliding with the player.
-                /*let mut tiles = Vec::with_capacity(6);
-                {
-                    let x1 = (player_physics.x / TILE_SIZE as f32).floor() as usize;
-                    let x2 = ((player_physics.x + HUMANOID_WIDTH as f32) / TILE_SIZE as f32).ceil()
-                        as usize;
-                    let y1 = (last_y / TILE_SIZE as f32).floor() as usize;
-                    let y2 = ((last_y + HUMANOID_HEIGHT as f32) / TILE_SIZE as f32).ceil() as usize;
-                    let x1_new = (player_physics.x / TILE_SIZE as f32).floor() as usize;
-                    let x2_new = ((player_physics.x + HUMANOID_WIDTH as f32) / TILE_SIZE as f32)
-                        .ceil() as usize;
-                    let (y1, y2) = if going_down {
-                        (y2, y2_new)
-                    } else {
-                        (y1_new, y1)
-                    };
-                    self.foreground_tiles
-                        .for_each_sub_wrapping(x1..x2, y1..y2, |_x, _y, tile| {
-                            if !matches!(tile, Tile::None) {
-                                tiles.push(*tile);
-                            }
-                        });
-                }
+                tiles.clear();
+                let tx = collect_newly_colliding_tiles_x(
+                    last_x,
+                    player_physics.x,
+                    player_physics.y,
+                    HUMANOID_WIDTH as f32,
+                    HUMANOID_HEIGHT as f32,
+                    &self.foreground_tiles,
+                    &mut tiles,
+                );
 
                 // Resolve colliding tiles
                 {
-                    player_physics.grounded = false; // assume player isn't grounded
+                    let (mut corrected_x, mut corrected_dx) = (player_physics.x, player_physics.dx);
                     for _tile in tiles {
                         // apply tile affect
 
                         // correct position
-                        if going_down {
-                            player_physics.grounded = true;
+                        if player_physics.dx > 0. {
+                            corrected_x = (tx * TILE_SIZE - HUMANOID_WIDTH) as f32;
+                        } else {
+                            corrected_x = (tx * TILE_SIZE + TILE_SIZE) as f32;
                         }
-                        player_physics.y =
-                            (player_physics.y / TILE_SIZE as f32).round() * TILE_SIZE as f32;
-                        player_physics.dy = 0.0;
+                        corrected_dx = 0.0;
                     }
-                }*/
+                    player_physics.x = corrected_x;
+                    player_physics.dx = corrected_dx;
+                }
             }
         }
 
@@ -583,10 +456,7 @@ impl GameUpdate {
         }
     }
 
-    pub fn postframe(
-        &mut self,
-        _timestamp: u64,
-    ) -> (Option<GameFrame>, &[NetEvent]) {
+    pub fn postframe(&mut self, _timestamp: u64) -> (Option<GameFrame>, &[NetEvent]) {
         // Clone the visible tiles
         const VISIBLE_TILE_BUFFER: usize = 2;
         let x1 = ifdiv(self.view_pos.0 - VISIBLE_TILE_BUFFER, TILE_SIZE).saturating_sub(1);
@@ -630,8 +500,26 @@ impl GameUpdate {
             .map(|h| (h.physics.x, h.physics.y))
             .collect();
 
+        #[rustfmt::skip]
+        let debug_text = {
+            let left_queue = self.left_queue;
+            let right_queue = self.right_queue;
+            let up_queue = self.up_queue;
+            let (world_w, world_h) = (self.world_w, self.world_h);
+            let player_phys = self.humanoids.get(&self.player_id).map(|p| p.physics);
+            format!("\
+                player: {player_phys:.01?}\n\
+                world size: {world_w}x{world_h}\n\
+                left:  {left_queue:08b}\n\
+                right: {right_queue:08b}\n\
+                up:    {up_queue:08b}\n\
+            ")
+        };
+
         // Construct frame.
         let frame = (!self.exit).then(|| GameFrame {
+            debug_text,
+
             view_x: self.view_pos.0,
             view_y: self.view_pos.1,
             view_w: self.view_size.0,

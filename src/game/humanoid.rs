@@ -1,7 +1,7 @@
 pub const HUMANOID_GRAVITY: f32 = 0.1;
 pub const HUMANOID_MAX_VELOCITY: f32 = 16.;
-pub const HUMANOID_WIDTH: usize = 32;
-pub const HUMANOID_HEIGHT: usize = 48;
+pub const HUMANOID_WIDTH: usize = 32 - 4;
+pub const HUMANOID_HEIGHT: usize = 48 - 4;
 
 #[derive(Copy, Clone, Debug)]
 pub enum HumanoidActionState {
@@ -29,6 +29,8 @@ pub struct HumanoidPhysics {
     pub y: f32,
     pub dx: f32,
     pub dy: f32,
+    pub ddx: f32,
+    pub ddy: f32,
     pub grounded: bool,
 }
 
@@ -38,22 +40,11 @@ pub enum HumanoidAi {
 }
 
 pub fn update_humanoid_physics_x(state: &mut HumanoidState, physics: &mut HumanoidPhysics) {
-    // Accelerate.
-    let (ddx, max_velocity) = match (state.action_state, state.direction) {
-        (HumanoidActionState::Run, HumanoidDirection::Left) if physics.grounded => {
-            (-0.1, 1.0)
-        },
-        (HumanoidActionState::Run, HumanoidDirection::Right) if physics.grounded => {
-            (0.1, 1.0)
-        }
-        _ => { (0.0, HUMANOID_MAX_VELOCITY) }
-    };
+    let max_velocity = 3.;
 
     // Clamp velocity
-    physics.dx += ddx;
-    physics.dx = physics
-        .dx
-        .clamp(-max_velocity, max_velocity);
+    physics.dx += physics.ddx;
+    physics.dx = physics.dx.clamp(-max_velocity, max_velocity);
 
     // Apply velocity to position
     physics.x += physics.dx;

@@ -8,7 +8,7 @@ pub enum NetEvent {
     Ping,
     Disconnect,
     Close,
-    
+
     // Humanoid.
     HumanoidUpdate(u64, f32, f32), // id, x, y
 

@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 lazy_static! {
     static ref PROGRAM_START: Instant = Instant::now();
@@ -24,7 +24,10 @@ pub fn get_microseconds_as_u64() -> u64 {
 pub fn wait(time: u64) -> u64 {
     // Sleep for the duration, with a buffer
     let buffer = 2_000; // us
-    std::thread::sleep(Duration::from_micros(time.saturating_sub(get_microseconds_as_u64()).saturating_sub(buffer)));
+    std::thread::sleep(Duration::from_micros(
+        time.saturating_sub(get_microseconds_as_u64())
+            .saturating_sub(buffer),
+    ));
 
     // Spin for the remaining time
     while get_microseconds_as_u64() < time {

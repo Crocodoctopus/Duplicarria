@@ -24,7 +24,7 @@ pub fn send_to(socket: &UdpSocket, dst: SocketAddr, events: &[NetEvent]) -> usiz
         // If the event can't fit in the current packet, send the packet
         if packet_size + event_size > PACKET_MAX_SIZE {
             socket.send_to(&packet[..packet_size], dst);
-            sent += packet_size; 
+            sent += packet_size;
             packet_size = 0;
         }
 

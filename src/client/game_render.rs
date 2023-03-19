@@ -9,6 +9,10 @@ pub struct GameRender {
     // General purpose IBO.
     ibo: ezgl::Buffer<u16>,
 
+    // Debug text data.
+    debug_text_xy: ezgl::Buffer<(f32, f32)>,
+    debug_text_uv: ezgl::Buffer<(f32, f32)>,
+
     // Humanoid state data.
     humanoid_xy: ezgl::Buffer<(f32, f32)>,
     humanoid_rgb: ezgl::Buffer<(f32, f32, f32)>,
@@ -39,6 +43,9 @@ impl GameRender {
             programs: load_game_programs(),
 
             ibo,
+
+            debug_text_xy: ezgl::Buffer::new(),
+            debug_text_uv: ezgl::Buffer::new(),
 
             humanoid_xy: ezgl::Buffer::new(),
             humanoid_rgb: ezgl::Buffer::new(),
@@ -140,13 +147,33 @@ impl GameRender {
         // Render light map.
         unsafe {
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as _);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as _);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as _);
         }
         ezgl::Draw::start_tri_draw(2, &self.programs["light"], &self.ibo)
             .with_buffer(&self.light_xy, "vert_xy")
             .with_buffer(&self.light_uv, "vert_uv")
             .with_uniform(view.as_ref() as &[[f32; 3]; 3], "view_matrix")
             .with_texture(&self.light_tex, "light_map")
+            .enable_blend(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA)
+            .draw();
+
+        // File debug text buffers with data.
+        let char_count = gen_debug_text_buffers(
+            &mut self.debug_text_xy,
+            &mut self.debug_text_uv,
+            &game_frame.debug_text,
+            (game_frame.view_x as f32, game_frame.view_y as f32),
+        );
+
+        unsafe {
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as _);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as _);
+        }
+        ezgl::Draw::start_tri_draw(char_count as u32 / 2, &self.programs["quad"], &self.ibo)
+            .with_buffer(&self.debug_text_xy, "vert_xy")
+            .with_buffer(&self.debug_text_uv, "vert_uv")
+            .with_uniform(view.as_ref() as &[[f32; 3]; 3], "view_matrix")
+            .with_texture(&self.textures["debug_font.png"], "tex")
             .enable_blend(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA)
             .draw();
     }
@@ -160,7 +187,7 @@ use ezgl::{Buffer, Texture2D};
 
 fn load_game_textures() -> HashMap<&'static str, ezgl::Texture2D> {
     let root = crate::io::get_root().join("resources");
-    let load_list = ["tile_sheet.png", "mask_sheet.png"];
+    let load_list = ["debug_font.png", "tile_sheet.png", "mask_sheet.png"];
     let mut hmap = HashMap::new();
 
     for string in load_list {
@@ -348,4 +375,49 @@ fn gen_humanoid_buffers(
     xy.init(gl::ARRAY_BUFFER, &xy_vec[..]);
     rgb.init(gl::ARRAY_BUFFER, &rgb_vec[..]);
     len * 4
+}
+
+fn gen_debug_text_buffers(
+    xy: &mut Buffer<(f32, f32)>,
+    uv: &mut Buffer<(f32, f32)>,
+    string: &String,
+    offset: (f32, f32),
+) -> usize {
+    // The width and height of each character.
+    let w = 8.;
+    let h = 14.;
+    let tex_w = 10; // in chars
+    let tex_h = 10; // in chars
+
+    // Fill xy and uv vecs.
+    let mut x = offset.0;
+    let mut y = offset.1;
+    let mut xy_vec = Vec::with_capacity(string.len());
+    let mut uv_vec = Vec::with_capacity(string.len());
+    for c in string.chars() {
+        // Special logic on newline.
+        if c == '\n' {
+            x = offset.0;
+            y += h;
+            continue;
+        }
+
+        // Insert vertices.
+        xy_vec.extend_from_slice(&[(x, y), (x + w, y), (x + w, y + h), (x, y + h)]);
+
+        // Insert uv.
+        let index = c as u8 - 0x20;
+        let u = (index % tex_w) as f32 * w;
+        let v = (index / tex_w) as f32 * h;
+        uv_vec.extend_from_slice(&[(u, v), (u + w, v), (u + w, v + h), (u, v + h)]);
+
+        // Increment x.
+        x += w;
+    }
+
+    // Fill
+    xy.init(gl::ARRAY_BUFFER, &xy_vec);
+    uv.init(gl::ARRAY_BUFFER, &uv_vec);
+
+    xy_vec.len()
 }
