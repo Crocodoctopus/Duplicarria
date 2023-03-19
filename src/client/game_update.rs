@@ -225,37 +225,53 @@ impl GameUpdate {
         }
 
         // Shift left, cloning right most bit.
-        self.cursor_left_queue = self.cursor_left_queue & 1 | self.cursor_left_queue << 1;
-        self.cursor_right_queue = self.cursor_right_queue & 1 | self.cursor_right_queue << 1;
-        self.up_queue = self.up_queue & 1 | self.up_queue << 1;
-        self.down_queue = self.down_queue & 1 | self.down_queue << 1;
-        self.left_queue = self.left_queue & 1 | self.left_queue << 1;
-        self.right_queue = self.right_queue & 1 | self.right_queue << 1;
+        queue_shift_u8(&mut self.cursor_left_queue);
+        queue_shift_u8(&mut self.cursor_right_queue);
+        queue_shift_u8(&mut self.up_queue);
+        queue_shift_u8(&mut self.down_queue);
+        queue_shift_u8(&mut self.left_queue);
+        queue_shift_u8(&mut self.right_queue);
 
         // Input loop.
         for input in input_events {
             match input {
-                InputEvent::KeyEvent(KeyState::Down, InputKey::W) => self.up_queue |= 1,
-                InputEvent::KeyEvent(KeyState::Down, InputKey::A) => self.left_queue |= 1,
-                InputEvent::KeyEvent(KeyState::Down, InputKey::S) => self.down_queue |= 1,
-                InputEvent::KeyEvent(KeyState::Down, InputKey::D) => self.right_queue |= 1,
-                InputEvent::KeyEvent(KeyState::Up, InputKey::W) => self.up_queue &= !1,
-                InputEvent::KeyEvent(KeyState::Up, InputKey::A) => self.left_queue &= !1,
-                InputEvent::KeyEvent(KeyState::Up, InputKey::S) => self.down_queue &= !1,
-                InputEvent::KeyEvent(KeyState::Up, InputKey::D) => self.right_queue &= !1,
+                InputEvent::KeyEvent(KeyState::Down, InputKey::W) => {
+                    queue_set_u8(&mut self.up_queue)
+                }
+                InputEvent::KeyEvent(KeyState::Down, InputKey::A) => {
+                    queue_set_u8(&mut self.left_queue)
+                }
+                InputEvent::KeyEvent(KeyState::Down, InputKey::S) => {
+                    queue_set_u8(&mut self.down_queue)
+                }
+                InputEvent::KeyEvent(KeyState::Down, InputKey::D) => {
+                    queue_set_u8(&mut self.right_queue)
+                }
+                InputEvent::KeyEvent(KeyState::Up, InputKey::W) => {
+                    queue_clear_u8(&mut self.up_queue)
+                }
+                InputEvent::KeyEvent(KeyState::Up, InputKey::A) => {
+                    queue_clear_u8(&mut self.left_queue)
+                }
+                InputEvent::KeyEvent(KeyState::Up, InputKey::S) => {
+                    queue_clear_u8(&mut self.down_queue)
+                }
+                InputEvent::KeyEvent(KeyState::Up, InputKey::D) => {
+                    queue_clear_u8(&mut self.right_queue)
+                }
 
                 InputEvent::CursorMove(x, y) => (self.cursor_x, self.cursor_y) = (x as _, y as _),
                 InputEvent::KeyEvent(KeyState::Down, InputKey::LeftClick) => {
-                    self.cursor_left_queue |= 1
+                    queue_set_u8(&mut self.cursor_left_queue);
                 }
                 InputEvent::KeyEvent(KeyState::Down, InputKey::RightClick) => {
-                    self.cursor_right_queue |= 1
+                    queue_set_u8(&mut self.cursor_right_queue);
                 }
                 InputEvent::KeyEvent(KeyState::Up, InputKey::LeftClick) => {
-                    self.cursor_left_queue &= !1
+                    queue_clear_u8(&mut self.cursor_left_queue);
                 }
                 InputEvent::KeyEvent(KeyState::Up, InputKey::RightClick) => {
-                    self.cursor_right_queue &= !1
+                    queue_clear_u8(&mut self.cursor_right_queue)
                 }
                 _ => continue,
             };
@@ -343,8 +359,6 @@ impl GameUpdate {
                 // Upldate player physics
                 let last_y = player_physics.y;
                 update_humanoid_physics_y(player_state, player_physics);
-                let dy = player_physics.y - last_y;
-                let going_down = dy > 0.;
 
                 // Calculate tiles that are now colliding with the player.
                 let ty = collect_newly_colliding_tiles_y(
@@ -359,19 +373,22 @@ impl GameUpdate {
 
                 // Resolve colliding tiles
                 {
+                    let (mut corrected_y, mut corrected_dy) = (player_physics.y, player_physics.dy);
                     player_physics.grounded = false; // assume player isn't grounded
                     for _ in &tiles {
                         // apply tile affect
 
                         // correct position
-                        if going_down {
-                            player_physics.y = (ty * TILE_SIZE - HUMANOID_HEIGHT) as f32;
+                        if player_physics.dy > 0. {
+                            corrected_y = (ty * TILE_SIZE - HUMANOID_HEIGHT) as f32;
                             player_physics.grounded = true;
                         } else {
-                            player_physics.y = (ty * TILE_SIZE + TILE_SIZE) as f32;
+                            corrected_y = (ty * TILE_SIZE + TILE_SIZE) as f32;
                         }
-                        player_physics.dy = 0.0;
+                        corrected_dy = 0.0;
                     }
+                    player_physics.y = corrected_y;
+                    player_physics.dy = corrected_dy;
                 }
             }
 
@@ -396,7 +413,7 @@ impl GameUpdate {
                 // Resolve colliding tiles
                 {
                     let (mut corrected_x, mut corrected_dx) = (player_physics.x, player_physics.dx);
-                    for _tile in tiles {
+                    for _ in tiles {
                         // apply tile affect
 
                         // correct position
