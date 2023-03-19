@@ -60,24 +60,23 @@ pub fn client_update_thread(
 
     // Create a server.
     let mut net_events = vec![]; // events recv from server
-    let server_port = 0xCAFE;
     let socket = UdpSocket::bind(("127.0.0.1", 0)).unwrap();
-    socket.connect(("127.0.0.1", server_port));
     socket.set_nonblocking(true);
+    let dst: std::net::SocketAddr = "127.0.0.1:51966".parse().unwrap();
 
     // Connect protocol.
     let (world_w, world_h, player_id) = 'v: loop {
         // Send connect request.
-        send(&socket, &[NetEvent::Connect]);
+        send_to(&socket, dst, &[NetEvent::Connect]);
 
         // Wait 1s.
         std::thread::sleep(std::time::Duration::from_millis(300));
 
         // Check socket for data.
-        recv(&socket, &mut net_events);
+        recv_from(&socket, &mut net_events);
 
         // The next message must be Accept.
-        if let Some(&NetEvent::Accept(world_w, world_h, player_id)) = net_events.get(0) {
+        if let Some(&(NetEvent::Accept(world_w, world_h, player_id), src)) = net_events.get(0) {
             net_events.remove(0);
             break 'v (world_w, world_h, player_id);
         }
@@ -99,12 +98,12 @@ pub fn client_update_thread(
 
         // Run preframe.
         time(&mut preframe_us, || {
-            recv(&socket, &mut net_events);
-            game_update.preframe(
-                timestamp,
-                input_recv.try_iter(),
-                std::mem::take(&mut net_events).into_iter(),
-            );
+            recv_from(&socket, &mut net_events);
+            let temp: Vec<NetEvent> = std::mem::take(&mut net_events)
+                .into_iter()
+                .filter_map(|(event, src)| (src == dst).then(|| event))
+                .collect();
+            game_update.preframe(timestamp, input_recv.try_iter(), temp);
         });
 
         // Simulate the time between timestamp and next_timestamp.
@@ -121,7 +120,7 @@ pub fn client_update_thread(
         let (frame, net_events) = time(&mut postframe_us, || game_update.postframe(timestamp));
 
         // Send net messages.
-        send(&socket, &net_events);
+        send_to(&socket, dst, &net_events);
 
         // Send frame to render thread.
         match frame {

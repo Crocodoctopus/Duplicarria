@@ -4,11 +4,6 @@ use crate::game::net::*;
 
 const PACKET_MAX_SIZE: usize = 576;
 
-pub fn send(socket: &UdpSocket, events: &[NetEvent]) -> usize {
-    let dst = socket.peer_addr().unwrap();
-    send_to(socket, dst, events)
-}
-
 pub fn send_to(socket: &UdpSocket, dst: SocketAddr, events: &[NetEvent]) -> usize {
     let mut packet = [0u8; PACKET_MAX_SIZE];
     let mut packet_size = 0;
@@ -40,25 +35,6 @@ pub fn send_to(socket: &UdpSocket, dst: SocketAddr, events: &[NetEvent]) -> usiz
     }
 
     return sent;
-}
-
-pub fn recv(socket: &UdpSocket, vec: &mut Vec<NetEvent>) -> usize {
-    let mut packet = [0u8; PACKET_MAX_SIZE];
-    let mut received = 0;
-
-    use std::io::BufReader;
-
-    // While there are packets...
-    while let Ok((n, _)) = socket.recv_from(&mut packet) {
-        let mut reader = BufReader::new(&packet[..n]);
-        received += n;
-        // While there is still data to deserialize
-        while let Ok(event) = bincode::deserialize_from::<_, NetEvent>(&mut reader) {
-            vec.push(event);
-        }
-    }
-
-    return received;
 }
 
 pub fn recv_from(socket: &UdpSocket, vec: &mut Vec<(NetEvent, SocketAddr)>) -> usize {
