@@ -142,7 +142,7 @@ pub fn client_update_thread(
     }
 
     // Send kill.
-    send(&socket, &[NetEvent::Close]);
+    send_to(&socket, dst, &[NetEvent::Close]);
 
     println!("[Client] Update thread closed.");
     return;
