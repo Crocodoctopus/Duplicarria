@@ -1,5 +1,6 @@
-use crate::array2d::Array2D;
-use crate::game::tile::Tile;
+use crate::array2d::*;
+use crate::game::tile::*;
+use crate::game::item::*;
 
 pub struct GameFrame {
     // Debug printing.
@@ -10,6 +11,9 @@ pub struct GameFrame {
     pub view_y: usize,
     pub view_w: usize,
     pub view_h: usize,
+
+    // Item layer.
+    pub items: Vec<(f32, f32, ItemId)>,
 
     // Humanoid layer.
     pub humanoid_positions: Vec<(f32, f32)>,

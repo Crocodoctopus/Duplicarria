@@ -1,5 +1,8 @@
 use crate::game::tile::*;
+use crate::game::item::*;
+use crate::game::humanoid::*;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum NetEvent {
@@ -19,6 +22,7 @@ pub enum NetEvent {
     BreakBackground(u16, u16),
 
     // To client.
+    HumanoidData(BTreeMap<u64, HumanoidPhysics>),
     UpdateForegroundTile(u16, u16, Tile),
     UpdateBackgroundTile(u16, u16, Tile),
     UpdateForegroundChunk(u16, u16, Box<[Tile]>),

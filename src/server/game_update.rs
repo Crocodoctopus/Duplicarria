@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::net::SocketAddr;
 
 use crate::game::humanoid::*;
+use crate::game::item::*;
 use crate::game::net::*;
 use crate::game::tile::*;
 
@@ -10,6 +11,10 @@ pub struct GameUpdate {
     kill: bool,
 
     connections: HashMap<SocketAddr, Connection>,
+
+    // Items.
+    item_id_counter: u64,
+    items: BTreeMap<u64, Item>,
 
     // Tiles.
     world_w: usize,
@@ -40,12 +45,26 @@ impl GameUpdate {
             return Tile::Stone;
         });
 
-        // Create light map
+        // Temp item.
+        let item_id_counter = 1;
+        let items = BTreeMap::from_iter(std::iter::once((
+            0,
+            Item {
+                x: 256.,
+                y: 32.,
+                dx: 0.,
+                dy: 0.,
+                id: ItemId::Dirt,
+            },
+        )));
 
         Self {
             kill: false,
 
             connections: HashMap::new(),
+
+            item_id_counter,
+            items,
 
             world_w,
             world_h,
@@ -105,8 +124,6 @@ impl GameUpdate {
                         y: 32.,
                         dx: 0.,
                         dy: 0.,
-                        ddx: 0.,
-                        ddy: 0.,
                         grounded: true,
                     },
                 };
@@ -220,7 +237,9 @@ impl GameUpdate {
         });
     }
 
-    pub fn step(&mut self, _timestamp: u64, _frametime: u64) {}
+    pub fn step(&mut self, timestamp: u64, frametime: u64) {
+        let dt = frametime as f32 / 1_000_000.;
+    }
 
     pub fn postframe(
         &mut self,
@@ -229,13 +248,8 @@ impl GameUpdate {
     ) -> bool {
         // Sync all humanoids with all players.
         for connection in &mut self.connections.values_mut() {
-            for (id, humanoid) in &self.humanoids {
-                connection.net_events.push(NetEvent::HumanoidUpdate(
-                    *id,
-                    humanoid.physics.x,
-                    humanoid.physics.y,
-                ));
-            }
+            let humanoids = BTreeMap::from_iter(self.humanoids.iter().map(|(k, v)| (*k, v.physics)));
+            connection.net_events.push(NetEvent::HumanoidData(humanoids));
         }
 
         // Ping all connections.

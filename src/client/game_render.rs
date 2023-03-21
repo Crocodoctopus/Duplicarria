@@ -1,5 +1,10 @@
 use super::game_frame::GameFrame;
+use crate::array2d::*;
+use crate::game::item::*;
+use crate::game::lighting::*;
+use crate::game::tile::*;
 use ezgl::gl;
+use ezgl::{Buffer, Texture2D};
 use std::collections::HashMap;
 
 pub struct GameRender {
@@ -7,25 +12,29 @@ pub struct GameRender {
     programs: HashMap<&'static str, ezgl::Program>,
 
     // General purpose IBO.
-    ibo: ezgl::Buffer<u16>,
+    ibo: Buffer<u16>,
 
     // Debug text data.
-    debug_text_xy: ezgl::Buffer<(f32, f32)>,
-    debug_text_uv: ezgl::Buffer<(f32, f32)>,
+    debug_text_xy: Buffer<(f32, f32)>,
+    debug_text_uv: Buffer<(f32, f32)>,
+
+    // Tile state data.
+    item_xy: Buffer<(f32, f32)>,
+    item_uv: Buffer<(f32, f32)>,
 
     // Humanoid state data.
-    humanoid_xy: ezgl::Buffer<(f32, f32)>,
-    humanoid_rgb: ezgl::Buffer<(f32, f32, f32)>,
+    humanoid_xy: Buffer<(f32, f32)>,
+    humanoid_rgb: Buffer<(f32, f32, f32)>,
 
     // Tile state data.
     max_tiles: usize,
-    tile_xyz: ezgl::Buffer<(f32, f32, f32)>,
-    tile_tex_uv: ezgl::Buffer<(f32, f32)>,
-    tile_msk_uv: ezgl::Buffer<(f32, f32)>,
+    tile_xyz: Buffer<(f32, f32, f32)>,
+    tile_tex_uv: Buffer<(f32, f32)>,
+    tile_msk_uv: Buffer<(f32, f32)>,
 
     // Texture state data.
-    light_xy: ezgl::Buffer<(f32, f32)>,
-    light_uv: ezgl::Buffer<(f32, f32)>,
+    light_xy: Buffer<(f32, f32)>,
+    light_uv: Buffer<(f32, f32)>,
     light_tex: ezgl::Texture2D,
 }
 
@@ -36,7 +45,7 @@ impl GameRender {
         for i in 0..11089 {
             vec.extend_from_slice(&[4 * i, 4 * i + 1, 4 * i + 2, 4 * i + 2, 4 * i + 3, 4 * i]);
         }
-        let ibo = ezgl::Buffer::from(gl::ELEMENT_ARRAY_BUFFER, &vec);
+        let ibo = Buffer::from(gl::ELEMENT_ARRAY_BUFFER, &vec);
 
         Self {
             textures: load_game_textures(),
@@ -44,19 +53,22 @@ impl GameRender {
 
             ibo,
 
-            debug_text_xy: ezgl::Buffer::new(),
-            debug_text_uv: ezgl::Buffer::new(),
+            debug_text_xy: Buffer::new(),
+            debug_text_uv: Buffer::new(),
 
-            humanoid_xy: ezgl::Buffer::new(),
-            humanoid_rgb: ezgl::Buffer::new(),
+            item_xy: Buffer::new(),
+            item_uv: Buffer::new(),
+
+            humanoid_xy: Buffer::new(),
+            humanoid_rgb: Buffer::new(),
 
             max_tiles: 0,
-            tile_xyz: ezgl::Buffer::new(),
-            tile_tex_uv: ezgl::Buffer::new(),
-            tile_msk_uv: ezgl::Buffer::new(),
+            tile_xyz: Buffer::new(),
+            tile_tex_uv: Buffer::new(),
+            tile_msk_uv: Buffer::new(),
 
-            light_xy: ezgl::Buffer::new(),
-            light_uv: ezgl::Buffer::new(),
+            light_xy: Buffer::new(),
+            light_uv: Buffer::new(),
             light_tex: ezgl::Texture2D::new(),
         }
     }
@@ -112,6 +124,48 @@ impl GameRender {
             .with_buffer(&self.humanoid_rgb, "vert_rgb")
             .with_uniform(view.as_ref() as &[[f32; 3]; 3], "view_matrix")
             .draw();
+
+        // Item rendering.
+        {
+            fn gen_item_buffers(
+                xy: &mut Buffer<(f32, f32)>,
+                uv: &mut Buffer<(f32, f32)>,
+                items: &Vec<(f32, f32, ItemId)>,
+            ) -> u32 {
+                let mut xy_vec = Vec::with_capacity(4 * items.len());
+                let mut uv_vec = Vec::with_capacity(4 * items.len());
+                for (x, y, item_id) in items {
+                    xy_vec.extend_from_slice(&[
+                        (*x, *y),
+                        (*x + 16., *y),
+                        (*x + 16., *y + 16.),
+                        (*x, *y + 16.),
+                    ]);
+                    let (u, v) = match item_id {
+                        ItemId::Dirt => (16., 0.),
+                        ItemId::Stone => (32., 0.),
+                    };
+                    uv_vec.extend_from_slice(&[
+                        (u, v),
+                        (u + 16., v),
+                        (u + 16., v + 16.),
+                        (u, v + 16.),
+                    ]);
+                }
+                xy.init(gl::ARRAY_BUFFER, &xy_vec).unwrap();
+                uv.init(gl::ARRAY_BUFFER, &uv_vec).unwrap();
+                (xy_vec.len() / 4) as u32
+            }
+            let item_count =
+                gen_item_buffers(&mut self.item_xy, &mut self.item_uv, &game_frame.items);
+
+            ezgl::Draw::start_tri_draw(item_count * 2, &self.programs["quad"], &self.ibo)
+                .with_buffer(&self.item_xy, "vert_xy")
+                .with_buffer(&self.item_uv, "vert_uv")
+                .with_uniform(view.as_ref() as &[[f32; 3]; 3], "view_matrix")
+                .with_texture(&self.textures["tile_sheet.png"], "tex")
+                .draw();
+        }
 
         // Fill fg tile buffers with data
         let tile_count = gen_tile_buffers(
@@ -178,12 +232,6 @@ impl GameRender {
             .draw();
     }
 }
-
-use crate::array2d::Array2D;
-use crate::game::lighting::*;
-/// Various update functions:
-use crate::game::tile::*;
-use ezgl::{Buffer, Texture2D};
 
 fn load_game_textures() -> HashMap<&'static str, ezgl::Texture2D> {
     let root = crate::io::get_root().join("resources");

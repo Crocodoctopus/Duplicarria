@@ -7,6 +7,7 @@ use crate::common::*;
 
 use crate::game::collision::*;
 use crate::game::humanoid::*;
+use crate::game::item::*;
 use crate::game::lighting::*;
 use crate::game::net::*;
 use crate::game::tile::*;
@@ -34,7 +35,10 @@ pub struct GameUpdate {
     view_pos: (usize, usize),
     view_size: (usize, usize),
 
-    // Humanoid
+    // Items:
+    items: Vec<Item>,
+
+    // Humanoids:
     player_id: u64,
     humanoids: BTreeMap<u64, Humanoid>,
 
@@ -122,6 +126,14 @@ impl GameUpdate {
             outbound: Vec::new(),
             chunks,
 
+            items: vec![Item {
+                x: 256.,
+                y: 64.,
+                dx: 0.,
+                dy: 0.,
+                id: ItemId::Dirt,
+            }],
+
             player_id,
             humanoids: BTreeMap::default(),
 
@@ -193,21 +205,27 @@ impl GameUpdate {
                         *self.background_tiles.get_wrapping_mut(x, y) = tile;
                     }
                 }
+                NetEvent::HumanoidData(humanoids) => {
+                    let player = self.humanoids.get(&self.player_id).cloned();
+                    self.humanoids = BTreeMap::from_iter(
+                        humanoids
+                            .into_iter()
+                            .map(|(key, value)| (key, Humanoid { physics: value })),
+                    );
+                    if let (Some(old_player), Some(new_player)) =
+                        (player, self.humanoids.get_mut(&self.player_id))
+                    {
+                        *new_player = old_player;
+                    }
+                }
                 NetEvent::HumanoidUpdate(id, x, y) => {
                     // Create a new humanoid if one doesn't exist.
                     let humanoid = self.humanoids.entry(id).or_insert_with(|| Humanoid {
-                        state: HumanoidState {
-                            action_state: HumanoidActionState::Idle,
-                            direction: HumanoidDirection::Right,
-                            timestamp_ms: timestamp_ms as u16,
-                        },
                         physics: HumanoidPhysics {
                             x,
                             y,
                             dx: 0.,
                             dy: 0.,
-                            ddx: 0.,
-                            ddy: 0.,
                             grounded: false,
                         },
                     });
@@ -327,38 +345,35 @@ impl GameUpdate {
             let _nodx = player.physics.dx.round() == 0.0;
 
             // Cancel all acceleration.
-            player.physics.ddx = 0.;
-            player.physics.ddy = 0.;
+            let mut ddx = 0.;
+            let mut ddy = HUMANOID_GRAVITY;
 
             // Move player right
-            if right_cmd && !left_cmd {
-                player.physics.ddx = 0.18;
+            if right_cmd && !left_cmd && player.physics.dx < 3. {
+                ddx = 0.18;
             }
             // Move player left
-            if left_cmd && !right_cmd {
-                player.physics.ddx = -0.18;
+            if left_cmd && !right_cmd && player.physics.dx > -3. {
+                ddx = -0.18;
             }
             // Else friction?
             if !left_cmd && !right_cmd {
-                player.physics.ddx = -player.physics.dx * 0.1;
+                ddx = -player.physics.dx * 0.1;
             }
             // Jump
             if jump_cmd && grounded {
-                player.physics.dy = -5.0;
+                ddy += -5.;
             }
-        }
 
-        // Player physics [TODO: make this neater]
-        let mut tiles = Vec::with_capacity(6); // generic vec
-        if let Some(player) = self.humanoids.get_mut(&self.player_id) {
-            let player_state = &mut player.state;
+            // Player physics [TODO: make this neater]
+            let mut tiles = Vec::with_capacity(6); // generic vec
             let player_physics = &mut player.physics;
 
             // Player Physics Y
             {
                 // Upldate player physics
                 let last_y = player_physics.y;
-                update_humanoid_physics_y(player_state, player_physics);
+                update_humanoid_physics_y(player_physics, ddy);
 
                 // Calculate tiles that are now colliding with the player.
                 let ty = collect_newly_colliding_tiles_y(
@@ -396,7 +411,7 @@ impl GameUpdate {
             {
                 // Upldate player physics
                 let last_x = player_physics.x;
-                update_humanoid_physics_x(player_state, player_physics);
+                update_humanoid_physics_x(player_physics, ddx);
 
                 // Calculate tiles that are now colliding with the player.
                 tiles.clear();
@@ -517,6 +532,9 @@ impl GameUpdate {
             .map(|h| (h.physics.x, h.physics.y))
             .collect();
 
+        // Prepare item data.
+        let items: Vec<(f32, f32, ItemId)> = self.items.iter().map(|i| (i.x, i.y, i.id)).collect();
+
         #[rustfmt::skip]
         let debug_text = {
             let left_queue = self.left_queue;
@@ -542,6 +560,8 @@ impl GameUpdate {
             view_w: self.view_size.0,
             view_h: self.view_size.1,
 
+            items,
+
             humanoid_positions,
 
             tiles_x,
@@ -563,7 +583,6 @@ impl GameUpdate {
 
 #[derive(Copy, Clone, Debug)]
 struct Humanoid {
-    state: HumanoidState,
     physics: HumanoidPhysics,
 }
 
