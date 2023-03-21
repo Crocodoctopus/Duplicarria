@@ -59,25 +59,19 @@ pub fn collect_newly_colliding_tiles_y(
     tiles: &impl Index2d<usize, Output = Tile>,
     vec: &mut Vec<Tile>,
 ) -> usize {
-    // Going down
     let (y1, y2) = if y > old_y {
-        //
-        let nb = (y + h) as usize / 16;
-        let ob = (old_y + h - 0.0001) as usize / 16;
-
+        let nb = (y + h) as usize / TILE_SIZE;
+        let ob = (old_y + h - 0.0001) as usize / TILE_SIZE;
         if nb == ob {
             return 0;
         }
-
-        // Calculate y1 and y2
         (nb, nb + 1)
     } else {
-        let nb = y as usize / 16;
-        let ob = (old_y + 0.0001) as usize / 16;
+        let nb = y as usize / TILE_SIZE;
+        let ob = (old_y + 0.0001) as usize / TILE_SIZE;
         if nb == ob {
             return 0;
         }
-
         (ob - 1, ob)
     };
 
@@ -163,8 +157,6 @@ pub fn resolve_humanoid_tile_collision_y(
 pub fn resolve_item_tile_collision_y(item: &mut Item, tile_y: usize, tiles: &Vec<Tile>) {
     let (mut corrected_y, mut corrected_dy) = (item.y, item.dy);
     for _ in tiles {
-        // apply tile affect
-
         // correct position
         if item.dy > 0. {
             corrected_y = (tile_y * TILE_SIZE - 16) as f32;

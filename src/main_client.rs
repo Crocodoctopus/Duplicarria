@@ -27,7 +27,7 @@ fn main() {
         .unwrap();
 
     // Create communication channels.
-    let (input_send, input_recv) = crossbeam_channel::bounded(50);
+    let (input_send, input_recv) = crossbeam_channel::bounded(100);
 
     // Spawn client.
     let (update_handle, render_handle) = client::launch_client(windowed_context, input_recv);
