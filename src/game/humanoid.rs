@@ -1,5 +1,6 @@
-pub const HUMANOID_GRAVITY: f32 = 0.1;
-pub const HUMANOID_MAX_VELOCITY: f32 = 16.;
+pub const HUMANOID_GRAVITY: f32 = 9.8 * 16.;
+pub const HUMANOID_MAX_VELOCITY: f32 = 900.; // Movement above 15 pixels per frame will probably
+                                             // cause problems.
 pub const HUMANOID_WIDTH: usize = 32 - 4;
 pub const HUMANOID_HEIGHT: usize = 48 - 4;
 
@@ -39,18 +40,18 @@ pub enum HumanoidAi {
     Player,
 }
 
-pub fn update_humanoid_physics_x(physics: &mut HumanoidPhysics, ddx: f32) {
-    physics.dx += ddx;
+pub fn update_humanoid_physics_x(dt: f32, physics: &mut HumanoidPhysics, ddx: f32) {
+    physics.x += 0.5 * ddx * dt * dt + physics.dx * dt;
+    physics.dx += ddx * dt;
     physics.dx = physics
         .dx
         .clamp(-HUMANOID_MAX_VELOCITY, HUMANOID_MAX_VELOCITY);
-    physics.x += physics.dx;
 }
 
-pub fn update_humanoid_physics_y(physics: &mut HumanoidPhysics, ddy: f32) {
-    physics.dy += ddy;
+pub fn update_humanoid_physics_y(dt: f32, physics: &mut HumanoidPhysics, ddy: f32) {
+    physics.y += 0.5 * ddy * dt * dt + physics.dy * dt;
+    physics.dy += ddy * dt;
     physics.dy = physics
         .dy
         .clamp(-HUMANOID_MAX_VELOCITY, HUMANOID_MAX_VELOCITY);
-    physics.y += physics.dy;
 }

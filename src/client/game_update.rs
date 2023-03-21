@@ -293,7 +293,7 @@ impl GameUpdate {
 
     #[inline(always)]
     pub fn step(&mut self, timestamp_us: u64, frametime: u64) {
-        let _dt = frametime as f32 / 1_000_000.;
+        let dt = frametime as f32 / 1_000_000.;
         let _timestamp_ms = timestamp_us / 1_000;
         let _timestamp_s = timestamp_us / 1_000_000;
 
@@ -313,8 +313,25 @@ impl GameUpdate {
             .saturating_sub(self.view_size.1)
             .max(16);
 
+        // Update item state.
+        let mut tmp = vec![];
+        for item in self.items.values_mut() {
+            let old_y = item.y;
+            update_item_physics_y(dt, item, ITEM_GRAVITY);
+            tmp.clear();
+            let ty = collect_newly_colliding_tiles_y(
+                old_y,
+                item.x,
+                item.y,
+                16.,
+                16.,
+                &self.foreground_tiles,
+                &mut tmp,
+            );
+            resolve_item_tile_collision_y(item, ty, &tmp);
+        }
+
         // Update player state.
-        let mut tiles = Vec::with_capacity(6); // generic vec
         for (id, humanoid) in &mut self.humanoids {
             // Player physics [TODO: make this neater]
             let physics = &mut humanoid.physics;
@@ -332,20 +349,21 @@ impl GameUpdate {
                     let mut ddy = HUMANOID_GRAVITY;
 
                     // Move player right
-                    if right_cmd && !left_cmd && physics.dx < 3. {
-                        ddx = 0.18;
+                    if right_cmd && !left_cmd && physics.dx < 9. * 16. {
+                        ddx += 16. * 16.;
                     }
                     // Move player left
-                    if left_cmd && !right_cmd && physics.dx > -3. {
-                        ddx = -0.18;
+                    if left_cmd && !right_cmd && physics.dx > -9. * 16. {
+                        ddx += -16. * 16.;
                     }
                     // Else friction?
-                    if !left_cmd && !right_cmd {
-                        ddx = -physics.dx * 0.1;
+                    if !(right_cmd && physics.dx > 0.0 || left_cmd && physics.dx < 0.0) {
+                        ddx += -physics.dx * 4.;
                     }
+
                     // Jump
                     if jump_cmd && grounded {
-                        ddy += -5.;
+                        ddy += -12000.;
                     }
                     (ddx, ddy)
                 } else {
@@ -355,9 +373,10 @@ impl GameUpdate {
 
             // Upldate player physics (y).
             let last_y = physics.y;
-            update_humanoid_physics_y(physics, ddy);
+            update_humanoid_physics_y(dt, physics, ddy);
 
             // Calculate tiles that are now colliding with the player.
+            tmp.clear();
             let ty = collect_newly_colliding_tiles_y(
                 last_y,
                 physics.x,
@@ -365,18 +384,18 @@ impl GameUpdate {
                 HUMANOID_WIDTH as f32,
                 HUMANOID_HEIGHT as f32,
                 &self.foreground_tiles,
-                &mut tiles,
+                &mut tmp,
             );
 
             // Resolve colliding tiles.
-            resolve_humanoid_tile_collision_y(physics, ty, &tiles);
+            resolve_humanoid_tile_collision_y(physics, ty, &tmp);
 
             // Upldate player physics (x).
             let last_x = physics.x;
-            update_humanoid_physics_x(physics, ddx);
+            update_humanoid_physics_x(dt, physics, ddx);
 
             // Calculate tiles that are now colliding with the player.
-            tiles.clear();
+            tmp.clear();
             let tx = collect_newly_colliding_tiles_x(
                 last_x,
                 physics.x,
@@ -384,11 +403,11 @@ impl GameUpdate {
                 HUMANOID_WIDTH as f32,
                 HUMANOID_HEIGHT as f32,
                 &self.foreground_tiles,
-                &mut tiles,
+                &mut tmp,
             );
 
             // Resolve colliding tiles.
-            resolve_humanoid_tile_collision_x(physics, tx, &tiles);
+            resolve_humanoid_tile_collision_x(physics, tx, &tmp);
         }
 
         // Clear light map.

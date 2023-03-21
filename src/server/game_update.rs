@@ -2,6 +2,7 @@ use crate::array2d::*;
 use std::collections::{BTreeMap, HashMap};
 use std::net::SocketAddr;
 
+use crate::game::collision::*;
 use crate::game::humanoid::*;
 use crate::game::item::*;
 use crate::game::net::*;
@@ -50,7 +51,7 @@ impl GameUpdate {
         let items = BTreeMap::from_iter(std::iter::once((
             0,
             Item {
-                x: 256.,
+                x: 48.,
                 y: 32.,
                 dx: 0.,
                 dy: 0.,
@@ -157,7 +158,7 @@ impl GameUpdate {
             match event {
                 NetEvent::Connect => {
                     // Connection handling is done above.
-                    unreachable!()
+                    //unreachable!()
                 }
                 NetEvent::Disconnect => {
                     self.connections.remove(&addr);
@@ -238,6 +239,23 @@ impl GameUpdate {
 
     pub fn step(&mut self, timestamp: u64, frametime: u64) {
         let dt = frametime as f32 / 1_000_000.;
+
+        let mut tmp = vec![];
+        for item in self.items.values_mut() {
+            let old_y = item.y;
+            update_item_physics_y(dt, item, ITEM_GRAVITY);
+            tmp.clear();
+            let ty = collect_newly_colliding_tiles_y(
+                old_y,
+                item.x,
+                item.y,
+                16.,
+                16.,
+                &self.foreground_tiles,
+                &mut tmp,
+            );
+            resolve_item_tile_collision_y(item, ty, &tmp);
+        }
     }
 
     pub fn postframe(
@@ -265,7 +283,6 @@ impl GameUpdate {
         }
 
         // Net stuff =/
-
         println!("#############");
         let mut sent = 0;
         for (&addr, connection) in self.connections.iter_mut() {
