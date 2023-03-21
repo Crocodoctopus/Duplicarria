@@ -338,111 +338,77 @@ impl GameUpdate {
 
         // Update player state.
         if let Some(player) = self.humanoids.get_mut(&self.player_id) {
-            let left_cmd = self.left_queue & 0b1 == 0b1;
-            let right_cmd = self.right_queue & 0b1 == 0b1;
-            let jump_cmd = self.up_queue & 0b11 == 0b01;
-            let grounded = player.physics.grounded;
-            let _nodx = player.physics.dx.round() == 0.0;
+            // Calculate acceleration forces
+            let (ddx, ddy) = {
+                let left_cmd = self.left_queue & 0b1 == 0b1;
+                let right_cmd = self.right_queue & 0b1 == 0b1;
+                let jump_cmd = self.up_queue & 0b11 == 0b01;
+                let grounded = player.physics.grounded;
+                let _nodx = player.physics.dx.round() == 0.0;
 
-            // Cancel all acceleration.
-            let mut ddx = 0.;
-            let mut ddy = HUMANOID_GRAVITY;
+                // Cancel all acceleration.
+                let mut ddx = 0.;
+                let mut ddy = HUMANOID_GRAVITY;
 
-            // Move player right
-            if right_cmd && !left_cmd && player.physics.dx < 3. {
-                ddx = 0.18;
-            }
-            // Move player left
-            if left_cmd && !right_cmd && player.physics.dx > -3. {
-                ddx = -0.18;
-            }
-            // Else friction?
-            if !left_cmd && !right_cmd {
-                ddx = -player.physics.dx * 0.1;
-            }
-            // Jump
-            if jump_cmd && grounded {
-                ddy += -5.;
-            }
+                // Move player right
+                if right_cmd && !left_cmd && player.physics.dx < 3. {
+                    ddx = 0.18;
+                }
+                // Move player left
+                if left_cmd && !right_cmd && player.physics.dx > -3. {
+                    ddx = -0.18;
+                }
+                // Else friction?
+                if !left_cmd && !right_cmd {
+                    ddx = -player.physics.dx * 0.1;
+                }
+                // Jump
+                if jump_cmd && grounded {
+                    ddy += -5.;
+                }
+                (ddx, ddy)
+            };
 
             // Player physics [TODO: make this neater]
             let mut tiles = Vec::with_capacity(6); // generic vec
             let player_physics = &mut player.physics;
 
-            // Player Physics Y
-            {
-                // Upldate player physics
-                let last_y = player_physics.y;
-                update_humanoid_physics_y(player_physics, ddy);
+            // Upldate player physics (y).
+            let last_y = player_physics.y;
+            update_humanoid_physics_y(player_physics, ddy);
 
-                // Calculate tiles that are now colliding with the player.
-                let ty = collect_newly_colliding_tiles_y(
-                    last_y,
-                    player_physics.x,
-                    player_physics.y,
-                    HUMANOID_WIDTH as f32,
-                    HUMANOID_HEIGHT as f32,
-                    &self.foreground_tiles,
-                    &mut tiles,
-                );
+            // Calculate tiles that are now colliding with the player.
+            let ty = collect_newly_colliding_tiles_y(
+                last_y,
+                player_physics.x,
+                player_physics.y,
+                HUMANOID_WIDTH as f32,
+                HUMANOID_HEIGHT as f32,
+                &self.foreground_tiles,
+                &mut tiles,
+            );
 
-                // Resolve colliding tiles
-                {
-                    let (mut corrected_y, mut corrected_dy) = (player_physics.y, player_physics.dy);
-                    player_physics.grounded = false; // assume player isn't grounded
-                    for _ in &tiles {
-                        // apply tile affect
+            // Resolve colliding tiles.
+            resolve_humanoid_tile_collision_y(player_physics, ty, &tiles);
 
-                        // correct position
-                        if player_physics.dy > 0. {
-                            corrected_y = (ty * TILE_SIZE - HUMANOID_HEIGHT) as f32;
-                            player_physics.grounded = true;
-                        } else {
-                            corrected_y = (ty * TILE_SIZE + TILE_SIZE) as f32;
-                        }
-                        corrected_dy = 0.0;
-                    }
-                    player_physics.y = corrected_y;
-                    player_physics.dy = corrected_dy;
-                }
-            }
+            // Upldate player physics (x).
+            let last_x = player_physics.x;
+            update_humanoid_physics_x(player_physics, ddx);
 
-            // Player Physics Y
-            {
-                // Upldate player physics
-                let last_x = player_physics.x;
-                update_humanoid_physics_x(player_physics, ddx);
+            // Calculate tiles that are now colliding with the player.
+            tiles.clear();
+            let tx = collect_newly_colliding_tiles_x(
+                last_x,
+                player_physics.x,
+                player_physics.y,
+                HUMANOID_WIDTH as f32,
+                HUMANOID_HEIGHT as f32,
+                &self.foreground_tiles,
+                &mut tiles,
+            );
 
-                // Calculate tiles that are now colliding with the player.
-                tiles.clear();
-                let tx = collect_newly_colliding_tiles_x(
-                    last_x,
-                    player_physics.x,
-                    player_physics.y,
-                    HUMANOID_WIDTH as f32,
-                    HUMANOID_HEIGHT as f32,
-                    &self.foreground_tiles,
-                    &mut tiles,
-                );
-
-                // Resolve colliding tiles
-                {
-                    let (mut corrected_x, mut corrected_dx) = (player_physics.x, player_physics.dx);
-                    for _ in tiles {
-                        // apply tile affect
-
-                        // correct position
-                        if player_physics.dx > 0. {
-                            corrected_x = (tx * TILE_SIZE - HUMANOID_WIDTH) as f32;
-                        } else {
-                            corrected_x = (tx * TILE_SIZE + TILE_SIZE) as f32;
-                        }
-                        corrected_dx = 0.0;
-                    }
-                    player_physics.x = corrected_x;
-                    player_physics.dx = corrected_dx;
-                }
-            }
+            // Resolve colliding tiles.
+            resolve_humanoid_tile_collision_x(player_physics, tx, &tiles);
         }
 
         // Clear light map.

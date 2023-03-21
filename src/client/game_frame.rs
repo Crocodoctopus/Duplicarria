@@ -1,6 +1,6 @@
 use crate::array2d::*;
-use crate::game::tile::*;
 use crate::game::item::*;
+use crate::game::tile::*;
 
 pub struct GameFrame {
     // Debug printing.

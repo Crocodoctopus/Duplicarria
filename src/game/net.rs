@@ -1,6 +1,6 @@
-use crate::game::tile::*;
-use crate::game::item::*;
 use crate::game::humanoid::*;
+use crate::game::item::*;
+use crate::game::tile::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 

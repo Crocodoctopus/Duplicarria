@@ -88,3 +88,49 @@ pub fn collect_newly_colliding_tiles_y(
 
     y1
 }
+
+/// Corrects the y position of a Humanoid that is colliding with tiles.
+pub fn resolve_humanoid_tile_collision_y(
+    physics: &mut HumanoidPhysics,
+    tile_y: usize,
+    tiles: &Vec<Tile>,
+) {
+    let (mut corrected_y, mut corrected_dy) = (physics.y, physics.dy);
+    physics.grounded = false; // assume player isn't grounded
+    for _ in tiles {
+        // apply tile affect
+
+        // correct position
+        if physics.dy > 0. {
+            corrected_y = (tile_y * TILE_SIZE - HUMANOID_HEIGHT) as f32;
+            physics.grounded = true;
+        } else {
+            corrected_y = (tile_y * TILE_SIZE + TILE_SIZE) as f32;
+        }
+        corrected_dy = 0.0;
+    }
+    physics.y = corrected_y;
+    physics.dy = corrected_dy;
+}
+
+/// Corrects the x position of a Humanoid that is colliding with tiles.
+pub fn resolve_humanoid_tile_collision_x(
+    physics: &mut HumanoidPhysics,
+    tile_x: usize,
+    tiles: &Vec<Tile>,
+) {
+    let (mut corrected_x, mut corrected_dx) = (physics.x, physics.dx);
+    for _ in tiles {
+        // apply tile affect
+
+        // correct position
+        if physics.dx > 0. {
+            corrected_x = (tile_x * TILE_SIZE - HUMANOID_WIDTH) as f32;
+        } else {
+            corrected_x = (tile_x * TILE_SIZE + TILE_SIZE) as f32;
+        }
+        corrected_dx = 0.0;
+    }
+    physics.x = corrected_x;
+    physics.dx = corrected_dx;
+}

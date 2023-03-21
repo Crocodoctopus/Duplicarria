@@ -22,7 +22,7 @@ fn update_item_physics_x(item: &mut Item, ddx: f32) {
     item.x += item.dx;
 }
 
-fn update_item_physics_y(item :&mut Item, ddy: f32) {
+fn update_item_physics_y(item: &mut Item, ddy: f32) {
     item.dy += ddy;
     item.dy = item.dy.clamp(-ITEM_MAX_VELOCITY, ITEM_MAX_VELOCITY);
     item.y += item.dy;

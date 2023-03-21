@@ -248,8 +248,11 @@ impl GameUpdate {
     ) -> bool {
         // Sync all humanoids with all players.
         for connection in &mut self.connections.values_mut() {
-            let humanoids = BTreeMap::from_iter(self.humanoids.iter().map(|(k, v)| (*k, v.physics)));
-            connection.net_events.push(NetEvent::HumanoidData(humanoids));
+            let humanoids =
+                BTreeMap::from_iter(self.humanoids.iter().map(|(k, v)| (*k, v.physics)));
+            connection
+                .net_events
+                .push(NetEvent::HumanoidData(humanoids));
         }
 
         // Ping all connections.
