@@ -230,6 +230,9 @@ impl GameUpdate {
         // Input loop.
         for input in input_events {
             match input {
+                InputEvent::Close => {
+                    self.exit = true; 
+                }
                 InputEvent::KeyEvent(KeyState::Down, InputKey::W) => {
                     queue_set_u8(&mut self.up_queue)
                 }
