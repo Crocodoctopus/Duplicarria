@@ -162,13 +162,12 @@ impl GameUpdate {
                 NetEvent::Disconnect => {
                     self.connections.remove(&addr);
                 }
-                NetEvent::HumanoidUpdate(id, x, y) => {
+                NetEvent::UpdateHumanoid(id, physics) => {
                     let Some(humanoid) = self.humanoids.get_mut(&id) else {
                         continue;
                     };
 
-                    humanoid.physics.x = x;
-                    humanoid.physics.y = y;
+                    humanoid.physics = physics;
                 }
                 NetEvent::Close => self.kill = true,
                 NetEvent::RequestChunk(x, y) => {
@@ -246,13 +245,18 @@ impl GameUpdate {
         _timestamp: u64,
         send_to: impl Fn(SocketAddr, &Vec<NetEvent>) -> usize,
     ) -> bool {
-        // Sync all humanoids with all players.
+        // [TODO: This doesn't scale well]
         for connection in &mut self.connections.values_mut() {
+            // Sync all humanoids with all players.
             let humanoids =
                 BTreeMap::from_iter(self.humanoids.iter().map(|(k, v)| (*k, v.physics)));
             connection
                 .net_events
                 .push(NetEvent::HumanoidData(humanoids));
+
+            // Sync all items with all players.
+            let items = self.items.clone();
+            connection.net_events.push(NetEvent::ItemData(items));
         }
 
         // Ping all connections.

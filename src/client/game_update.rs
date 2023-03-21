@@ -36,7 +36,7 @@ pub struct GameUpdate {
     view_size: (usize, usize),
 
     // Items:
-    items: Vec<Item>,
+    items: BTreeMap<u64, Item>,
 
     // Humanoids:
     player_id: u64,
@@ -126,16 +126,10 @@ impl GameUpdate {
             outbound: Vec::new(),
             chunks,
 
-            items: vec![Item {
-                x: 256.,
-                y: 64.,
-                dx: 0.,
-                dy: 0.,
-                id: ItemId::Dirt,
-            }],
+            items: BTreeMap::new(),
 
             player_id,
-            humanoids: BTreeMap::default(),
+            humanoids: BTreeMap::new(),
 
             world_w,
             world_h,
@@ -205,6 +199,9 @@ impl GameUpdate {
                         *self.background_tiles.get_wrapping_mut(x, y) = tile;
                     }
                 }
+                NetEvent::ItemData(items) => {
+                    self.items = items;
+                }
                 NetEvent::HumanoidData(humanoids) => {
                     let player = self.humanoids.get(&self.player_id).cloned();
                     self.humanoids = BTreeMap::from_iter(
@@ -217,26 +214,6 @@ impl GameUpdate {
                     {
                         *new_player = old_player;
                     }
-                }
-                NetEvent::HumanoidUpdate(id, x, y) => {
-                    // Create a new humanoid if one doesn't exist.
-                    let humanoid = self.humanoids.entry(id).or_insert_with(|| Humanoid {
-                        physics: HumanoidPhysics {
-                            x,
-                            y,
-                            dx: 0.,
-                            dy: 0.,
-                            grounded: false,
-                        },
-                    });
-
-                    // If the humanoid is the player, ignore the state update.
-                    if id == self.player_id {
-                        continue;
-                    }
-
-                    // Update.
-                    (humanoid.physics.x, humanoid.physics.y) = (x, y);
                 }
                 _ => {}
             }
@@ -337,51 +314,54 @@ impl GameUpdate {
             .max(16);
 
         // Update player state.
-        if let Some(player) = self.humanoids.get_mut(&self.player_id) {
+        let mut tiles = Vec::with_capacity(6); // generic vec
+        for (id, humanoid) in &mut self.humanoids {
+            // Player physics [TODO: make this neater]
+            let physics = &mut humanoid.physics;
+
             // Calculate acceleration forces
             let (ddx, ddy) = {
-                let left_cmd = self.left_queue & 0b1 == 0b1;
-                let right_cmd = self.right_queue & 0b1 == 0b1;
-                let jump_cmd = self.up_queue & 0b11 == 0b01;
-                let grounded = player.physics.grounded;
-                let _nodx = player.physics.dx.round() == 0.0;
+                if *id == self.player_id {
+                    let left_cmd = self.left_queue & 0b1 == 0b1;
+                    let right_cmd = self.right_queue & 0b1 == 0b1;
+                    let jump_cmd = self.up_queue & 0b11 == 0b01;
+                    let grounded = physics.grounded;
 
-                // Cancel all acceleration.
-                let mut ddx = 0.;
-                let mut ddy = HUMANOID_GRAVITY;
+                    // Cancel all acceleration.
+                    let mut ddx = 0.;
+                    let mut ddy = HUMANOID_GRAVITY;
 
-                // Move player right
-                if right_cmd && !left_cmd && player.physics.dx < 3. {
-                    ddx = 0.18;
+                    // Move player right
+                    if right_cmd && !left_cmd && physics.dx < 3. {
+                        ddx = 0.18;
+                    }
+                    // Move player left
+                    if left_cmd && !right_cmd && physics.dx > -3. {
+                        ddx = -0.18;
+                    }
+                    // Else friction?
+                    if !left_cmd && !right_cmd {
+                        ddx = -physics.dx * 0.1;
+                    }
+                    // Jump
+                    if jump_cmd && grounded {
+                        ddy += -5.;
+                    }
+                    (ddx, ddy)
+                } else {
+                    (0., HUMANOID_GRAVITY)
                 }
-                // Move player left
-                if left_cmd && !right_cmd && player.physics.dx > -3. {
-                    ddx = -0.18;
-                }
-                // Else friction?
-                if !left_cmd && !right_cmd {
-                    ddx = -player.physics.dx * 0.1;
-                }
-                // Jump
-                if jump_cmd && grounded {
-                    ddy += -5.;
-                }
-                (ddx, ddy)
             };
 
-            // Player physics [TODO: make this neater]
-            let mut tiles = Vec::with_capacity(6); // generic vec
-            let player_physics = &mut player.physics;
-
             // Upldate player physics (y).
-            let last_y = player_physics.y;
-            update_humanoid_physics_y(player_physics, ddy);
+            let last_y = physics.y;
+            update_humanoid_physics_y(physics, ddy);
 
             // Calculate tiles that are now colliding with the player.
             let ty = collect_newly_colliding_tiles_y(
                 last_y,
-                player_physics.x,
-                player_physics.y,
+                physics.x,
+                physics.y,
                 HUMANOID_WIDTH as f32,
                 HUMANOID_HEIGHT as f32,
                 &self.foreground_tiles,
@@ -389,18 +369,18 @@ impl GameUpdate {
             );
 
             // Resolve colliding tiles.
-            resolve_humanoid_tile_collision_y(player_physics, ty, &tiles);
+            resolve_humanoid_tile_collision_y(physics, ty, &tiles);
 
             // Upldate player physics (x).
-            let last_x = player_physics.x;
-            update_humanoid_physics_x(player_physics, ddx);
+            let last_x = physics.x;
+            update_humanoid_physics_x(physics, ddx);
 
             // Calculate tiles that are now colliding with the player.
             tiles.clear();
             let tx = collect_newly_colliding_tiles_x(
                 last_x,
-                player_physics.x,
-                player_physics.y,
+                physics.x,
+                physics.y,
                 HUMANOID_WIDTH as f32,
                 HUMANOID_HEIGHT as f32,
                 &self.foreground_tiles,
@@ -408,7 +388,7 @@ impl GameUpdate {
             );
 
             // Resolve colliding tiles.
-            resolve_humanoid_tile_collision_x(player_physics, tx, &tiles);
+            resolve_humanoid_tile_collision_x(physics, tx, &tiles);
         }
 
         // Clear light map.
@@ -446,11 +426,8 @@ impl GameUpdate {
 
         // Send server player data
         if let Some(player) = self.humanoids.get(&self.player_id) {
-            self.outbound.push(NetEvent::HumanoidUpdate(
-                self.player_id,
-                player.physics.x,
-                player.physics.y,
-            ));
+            self.outbound
+                .push(NetEvent::UpdateHumanoid(self.player_id, player.physics));
         }
     }
 
@@ -499,7 +476,8 @@ impl GameUpdate {
             .collect();
 
         // Prepare item data.
-        let items: Vec<(f32, f32, ItemId)> = self.items.iter().map(|i| (i.x, i.y, i.id)).collect();
+        let items: Vec<(f32, f32, ItemId)> =
+            self.items.values().map(|i| (i.x, i.y, i.id)).collect();
 
         #[rustfmt::skip]
         let debug_text = {

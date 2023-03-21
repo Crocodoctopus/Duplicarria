@@ -1,13 +1,15 @@
 pub const ITEM_GRAVITY: f32 = 0.1;
 pub const ITEM_MAX_VELOCITY: f32 = 16.;
 
-#[derive(Copy, Clone, Debug)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub enum ItemId {
     Dirt,
     Stone,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Item {
     pub id: ItemId,
     pub x: f32,
