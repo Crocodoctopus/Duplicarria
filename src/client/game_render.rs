@@ -163,6 +163,7 @@ impl GameRender {
                 .with_buffer(&self.item_xy, "vert_xy")
                 .with_buffer(&self.item_uv, "vert_uv")
                 .with_uniform(view.as_ref() as &[[f32; 3]; 3], "view_matrix")
+            .enable_blend(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA)
                 .with_texture(&self.textures["tile_sheet.png"], "tex")
                 .draw();
         }
@@ -184,6 +185,7 @@ impl GameRender {
             .with_buffer(&self.tile_msk_uv, "vert_mask_uv")
             .with_uniform(view.as_ref() as &[[f32; 3]; 3], "view_matrix")
             .with_texture(&self.textures["tile_sheet.png"], "tile_sheet")
+            .enable_blend(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA)
             .with_texture(&self.textures["mask_sheet.png"], "mask_sheet")
             .draw();
 
