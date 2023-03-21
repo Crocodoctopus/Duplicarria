@@ -1,8 +1,7 @@
+#![allow(dead_code)]
+
 #[macro_use]
 extern crate lazy_static;
-extern crate bincode;
-extern crate cgmath;
-extern crate crossbeam_channel;
 #[macro_use]
 extern crate serde;
 

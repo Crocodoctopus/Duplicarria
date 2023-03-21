@@ -1,17 +1,10 @@
 #![allow(dead_code)]
-#![allow(unused_must_use)]
 
 #[macro_use]
 extern crate lazy_static;
-extern crate bincode;
-extern crate cgmath;
-extern crate crossbeam_channel;
-extern crate glutin;
 #[macro_use]
 extern crate serde;
-extern crate ezgl;
 
-//mod array2d;
 mod array2d;
 mod client;
 mod common;

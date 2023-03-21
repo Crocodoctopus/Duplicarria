@@ -1,4 +1,4 @@
-use game::lighting::*;
+use crate::game::lighting::*;
 
 // Tile:
 pub const TILE_SIZE: usize = 16; // Tile size (in pixels).

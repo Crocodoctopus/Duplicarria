@@ -207,7 +207,6 @@ impl GameUpdate {
         }
 
         // Cull connections if they haven't been heard from in 5 seconds
-        let temp = &mut self.humanoids;
         self.connections.retain(|addr, connection| {
             if (timestamp_ms as u16).wrapping_sub(connection.last_msg) < 5_000 {
                 return true;
@@ -215,7 +214,7 @@ impl GameUpdate {
 
             // Remove all state associated with this key.
             println!("Disconnected {addr:?}.");
-            temp.remove(&connection.humanoid_id);
+            self.humanoids.remove(&connection.humanoid_id);
 
             return false;
         });

@@ -64,7 +64,7 @@ pub fn client_update_thread(
     let server_ip = "127.0.0.1";
     let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
     socket.connect((server_ip, server_port)).unwrap();
-    socket.set_nonblocking(true);
+    socket.set_nonblocking(true).unwrap();
 
     // Connect protocol.
     let (world_w, world_h, player_id) = 'v: loop {

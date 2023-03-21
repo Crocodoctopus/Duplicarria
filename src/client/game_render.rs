@@ -179,10 +179,10 @@ impl GameRender {
     }
 }
 
+use crate::array2d::Array2D;
 use crate::game::lighting::*;
 /// Various update functions:
 use crate::game::tile::*;
-use array2d::Array2D;
 use ezgl::{Buffer, Texture2D};
 
 fn load_game_textures() -> HashMap<&'static str, ezgl::Texture2D> {
@@ -298,9 +298,9 @@ pub fn gen_tile_buffers(
         }
     }
 
-    xyz.init(gl::ARRAY_BUFFER, &xyz_vec[..]);
-    tex_uv.init(gl::ARRAY_BUFFER, &tex_uv_vec[..]);
-    msk_uv.init(gl::ARRAY_BUFFER, &msk_uv_vec[..]);
+    xyz.init(gl::ARRAY_BUFFER, &xyz_vec[..]).unwrap();
+    tex_uv.init(gl::ARRAY_BUFFER, &tex_uv_vec[..]).unwrap();
+    msk_uv.init(gl::ARRAY_BUFFER, &msk_uv_vec[..]).unwrap();
 
     return xyz_vec.len() as _;
 }
@@ -330,13 +330,15 @@ pub fn gen_light_buffers(
             (x_px + w_px, y_px + h_px),
             (x_px, y_px + h_px),
         ],
-    );
+    )
+    .unwrap();
 
     // Generate light uv position.
     uv.init(
         gl::ARRAY_BUFFER,
         &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
-    );
+    )
+    .unwrap();
 
     // Generate texture
     let mut rgba: Vec<u8> = Vec::with_capacity(4 * w * h);
@@ -372,8 +374,8 @@ fn gen_humanoid_buffers(
         ]);
         rgb_vec.extend_from_slice(&[red, red, red, red]);
     }
-    xy.init(gl::ARRAY_BUFFER, &xy_vec[..]);
-    rgb.init(gl::ARRAY_BUFFER, &rgb_vec[..]);
+    xy.init(gl::ARRAY_BUFFER, &xy_vec[..]).unwrap();
+    rgb.init(gl::ARRAY_BUFFER, &rgb_vec[..]).unwrap();
     len * 4
 }
 
@@ -416,8 +418,8 @@ fn gen_debug_text_buffers(
     }
 
     // Fill
-    xy.init(gl::ARRAY_BUFFER, &xy_vec);
-    uv.init(gl::ARRAY_BUFFER, &uv_vec);
+    xy.init(gl::ARRAY_BUFFER, &xy_vec).unwrap();
+    uv.init(gl::ARRAY_BUFFER, &uv_vec).unwrap();
 
     xy_vec.len()
 }

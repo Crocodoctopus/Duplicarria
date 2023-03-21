@@ -1,4 +1,4 @@
-use array2d::{Array2D, FastArray2D};
+use crate::array2d::{Array2D, FastArray2D};
 use std::collections::BTreeMap;
 
 use super::game_frame::*;

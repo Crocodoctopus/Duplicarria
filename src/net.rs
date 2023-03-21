@@ -23,19 +23,19 @@ pub fn send_to(socket: &UdpSocket, dst: SocketAddr, events: &[NetEvent]) -> usiz
 
         // If the event can't fit in the current packet, send the packet
         if packet_size + event_size > PACKET_MAX_SIZE {
-            socket.send_to(&packet[..packet_size], dst);
+            socket.send_to(&packet[..packet_size], dst).unwrap();
             sent += packet_size;
             packet_size = 0;
         }
 
         // Pack net event into packet
-        serialize_into(&mut packet[packet_size..], &event);
+        serialize_into(&mut packet[packet_size..], &event).unwrap();
         packet_size += event_size;
     }
 
     // Send last packet if needed
     if packet_size != 0 {
-        socket.send_to(&packet[..packet_size], dst);
+        socket.send_to(&packet[..packet_size], dst).unwrap();
         sent += packet_size;
     }
 

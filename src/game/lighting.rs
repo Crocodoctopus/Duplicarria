@@ -73,7 +73,6 @@ pub fn propogate_light_map_unbounded(
 ) {
     let stride = light_map.stride();
 
-    use std::iter::FromIterator;
     let mut queue = std::collections::VecDeque::from_iter(lights);
 
     while let Some(index) = queue.pop_front() {
