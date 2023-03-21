@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use lazy_static::lazy_static;
 use std::time::{Duration, Instant};
 
 lazy_static! {

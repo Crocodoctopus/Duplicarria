@@ -1,4 +1,5 @@
 use crate::game::lighting::*;
+use serde::{Deserialize, Serialize};
 
 // Tile:
 pub const TILE_SIZE: usize = 16; // Tile size (in pixels).
